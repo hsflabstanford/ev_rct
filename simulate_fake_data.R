@@ -10,7 +10,6 @@ setwd(code.dir)
 source("simulate_helper.R")
 
 library(fabricatr)
-library(noncensus)
 
 N=650
 d = fabricate( N = N,
@@ -49,19 +48,54 @@ d = fabricate( N = N,
                
                party = draw_categorical( prob = c(.35, .35, .15, .15),
                                          N = N,
-                                         category_labels = c("a.Democrat", "b.Republican", "c.Indep", "d.Other") ),
+                                         category_labels = c("a.Democrat",
+                                                             "b.Republican",
+                                                             "c.Indep",
+                                                             "d.Other") ),
                
-               ##### Secondary Outcomes #####
-               spec = rnorm( N, mean = .08 * treat, sd = 1),
-               dom = rnorm( N, mean = 0, sd = 1),  # no effect with this one
-               activ = rnorm( N, mean = .2 * treat, sd = 1),
+               # ##### Secondary Outcomes #####
+               # # sub-measures of speciesism
+               # spec1 = draw_likert(),
+               # 
+               # dom = rnorm( N, mean = 0, sd = 1),  # no effect with this one
+               # 
+               # activ = rnorm( N, mean = .2 * treat, sd = 1),
                
                ##### Misc #####
-               finished.vid = rbinom( prob = 0.8, size = 1, n = N),
-                 
-               aware = rbinom( prob = 0.1, size = 1, n = N)
+               # create point mass at 20
+               video.time = pmin(20, runif(n=N, min=16, max=30)),
+                
+               # awareness probe #1
+               guessPurpose1 = draw_categorical( prob = rep(1/10, 10),
+                                          N = N,
+                                          category_labels = c("a.totalCal",
+                                                              "b.protein",
+                                                              "c.fat",
+                                                              "d.vegetables",
+                                                              "e.fruit",
+                                                              "f.wholeGrains",
+                                                              "g.meatAnimProd",
+                                                              "h.refined",
+                                                              "i.beverages",
+                                                              "j.dontKnow") ),
+               
+               guessPurpose2 = draw_categorical( prob = rep(1/4, 4),
+                                          N = N,
+                                          category_labels = c("a.generalPatterns",
+                                                              "b.increase",
+                                                              "c.decrease",
+                                                              "d.dontKnow") ),
               
 )
+
+##### Add Secondary Psychological Outcomes #####
+secondaryY = c("spec",
+               "dom",
+               "activ")
+
+make_psych_scale(yName = "spec", n.items = 6, n.responses = 7)
+make_psych_scale(yName = "dom", n.items = 8, n.responses = 7)
+make_psych_scale(yName = "activ", n.items = 5, n.responses = 7)
 
 
 ##### Add Primary (Food) Outcomes #####
@@ -72,27 +106,32 @@ goodPlant = c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
 allFoods = c(meats, animProds, decoy, goodPlant)
 
 for ( i in allFoods){
-  make_food_Y(yName = i,
-              betaFreq = .03,
-              betaAmount = 0)
+  make_food_Y(yName = i)
 }
 
 
-##### Missing Data and Attrition #####
+##### Attrition #####
 retention = 0.85
 
 foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
               names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
 
-secondaryY = c("spec",
-               "dom",
-               "activ")
 
-fu.vars = c(foodVars, secondaryY, "aware" )
+fu.vars = c(foodVars,
+            names(d)[ grepl(pattern = "spec", x = names(d) ) ],
+            names(d)[ grepl(pattern = "dom", x = names(d) ) ],
+            names(d)[ grepl(pattern = "activ", x = names(d) ) ],
+            names(d)[ grepl(pattern = "guessPurpose", x = names(d) ) ] )
 
 lost.to.fu = rbinom(nrow(d), size = 1, prob = 1 - retention)
 
 d[ lost.to.fu == 1, fu.vars ] = NA
+
+table(is.na(d))
+
+##### Sporadic Missing Data #####
+
+d = degradefunction(d, del.amount = .08)
 
 
 ##### Save the Fake Dataset #####

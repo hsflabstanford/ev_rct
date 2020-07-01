@@ -1,11 +1,40 @@
 
+rm(list=ls())
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                      PRELIMINARIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
+##### Packages #####
+library(dplyr)
+library(readr)
+library(tableone)
+library(ggplot2)
+
+##### Working Directories #####
+raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
+imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Results from R (fake)"
+
+setwd(code.dir)
 source("helper.R")
+
+overwrite.res = TRUE
+
+##### Dataset #####
+setwd(prepped.data.dir)
+d = read.csv("prepped_FAKE_data.csv")
+
+# read in imputations
+setwd(imputed.data.dir)
+load("imputed_datasets.RData")  # load "imps", the mids object
+
+# # if we need to pool manually
+# setwd("Imputed datasets as csvs")
+# imps = lapply( list.files(),
+#                function(x) suppressMessages(read_csv(x)) )
 
 
 ##### Lists of Variables #####
@@ -24,10 +53,19 @@ secondaryY = c("spec",
 
 fu.vars = c(foodVars, secondaryY, "aware" )
 
-##### Dataset #####
-setwd(data.dir)
-d = read.csv("prepped_FAKE_data.csv")
-
+demographics = c("sex",
+                 "age",
+                 "educ",
+                 "cauc",
+                 "hisp",
+                 "black",
+                 "midEast",
+                 "pacIsl",
+                 "natAm",
+                 "SAsian",
+                 "EAsian",
+                 "SEAsian",
+                 "party")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -35,7 +73,28 @@ d = read.csv("prepped_FAKE_data.csv")
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # Table 1
+CreateTableOne( vars = demographics, 
+                strata = "treat", 
+                data = d,
+                includeNA = TRUE)  # last only works for NA
 
+if(exists("t")) rm("t")
+
+
+
+# stratify demographics by treatment group
+t1.treat = make_table_one(.d = d %>% filter( treat == 1) )
+t1.cntrl = make_table_one(.d = d %>% filter( treat == 0) )
+
+t1 = data.frame( Characteristic = t1.treat$Characteristic,
+                 Intervention = t1.treat$Summary,
+                 Control = t1.cntrl$Summary )
+
+# save it
+if( overwrite.res == TRUE ){
+  setwd(results.dir)
+  write.csv(t1, "table1.csv")
+}
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

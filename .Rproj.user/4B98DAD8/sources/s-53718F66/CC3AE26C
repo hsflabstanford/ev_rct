@@ -7,19 +7,19 @@
     "folds" : "",
     "hash" : "0",
     "id" : "CC3AE26C",
-    "lastKnownWriteTime" : 1593563516,
-    "last_content_update" : 1593563516222,
+    "lastKnownWriteTime" : 1593613247,
+    "last_content_update" : 1593613247027,
     "path" : "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)/simulate_fake_data.R",
     "project_path" : "simulate_fake_data.R",
     "properties" : {
-        "cursorPosition" : "102,0",
-        "scrollLine" : "61",
+        "cursorPosition" : "5,0",
+        "scrollLine" : "0",
         "tempName" : "Untitled1"
     },
     "read_only" : false,
     "read_only_alternatives" : [
     ],
-    "relative_order" : 4,
+    "relative_order" : 2,
     "source_on_save" : false,
     "source_window" : "",
     "type" : "r_source"

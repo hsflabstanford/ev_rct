@@ -1,4 +1,121 @@
 
+########################### FNs FOR STATISTICS ###########################
+
+##### Fn: Nicely Organize Welch t-test Results #####
+my_ttest = function( yName, dat ){
+  
+  tres = t.test( dat[[yName]] ~ treat,
+                 data = dat,
+                 var.equal = FALSE )
+  
+  return( data.frame( # documentary - control
+    est = tres$estimate[2] - tres$estimate[1],
+    se = tres$stderr,
+    # note the reversed order because t-test calculates 
+    #  control - documentary:
+    lo = -tres$conf.int[2],
+    hi = -tres$conf.int[1],
+    pval = tres$p.value ) )
+}
+
+
+##### Fn: Nicely Organize 2-proportion Z-test results #####
+# for the sensitivity analysis with dichotomized outcome
+# returns on log-RR scale
+my_log_RR = function( dat ){
+  
+
+  es = escalc( measure = "RR",
+          ai = sum( dat$treat == 1 & dat$mainYLow == 1 ), # Tx with low consumption
+          bi = sum( dat$treat == 1 & dat$mainYLow == 0 ),  # Tx with high consumption
+          ci = sum( dat$treat == 0 & dat$mainYLow == 1 ),  # control with low consumption
+          di = sum( dat$treat == 0 & dat$mainYLow == 0 ) )  # control with high consumption
+  
+  
+  zcrit = qnorm(.975)
+  z = abs(es$yi / sqrt(es$vi))
+  
+  return( data.frame( 
+    est = es$yi,
+    se = sqrt(es$vi),
+    lo = es$yi - zcrit * sqrt(es$vi),
+    hi = es$yi + zcrit * sqrt(es$vi),
+    pval = 2 * ( 1 - pnorm(z) ) ) )
+}
+
+
+
+##### Fn: Pool Multiple Imputations Via Rubin's Rules #####
+# ests: ests from m imputations
+# ses: ses from m imputations
+mi_pool = function( ests, ses ){
+  
+  m = length(ests)
+  
+  ##### Pooled Estimate #####
+  est.pool = mean(ests)
+  
+  ##### Pooled SE #####
+  # Dong & Peng (2013), pg 5
+  # within-imputation variance
+  Ubar = mean( ses^2 )
+  # between-imputation variance
+  B = (1 / (m-1)) * sum( ( ests - mean(ests) )^2 )
+  # see Marshall "Combining estimates" paper, pg 3
+  se.pool = sqrt( Ubar + (1 + (1/m)) * B ) 
+  
+  ##### CI and P-value #####
+  # Dong & Peng (2013), pg 5
+  # relative increase in variance due to missing data
+  r = ( ( 1 + (1/m) ) * B ) / Ubar
+  # degrees of freedom without the small-sample adjustment
+  vm = (m-1) * ( 1 + (1/r) )^2
+  tcrit = qt(0.975, df = vm)
+  
+  lo.pool = est.pool - tcrit * se.pool
+  hi.pool = est.pool + tcrit * se.pool
+  t.pool = abs(est.pool) / se.pool
+  p.pool = 2 * ( 1 - pt(t.pool, df = vm) )
+  
+  return( data.frame( est = est.pool,
+                      se = se.pool, 
+                      lo = lo.pool,
+                      hi = hi.pool,
+                      pval = p.pool ) )
+}
+
+##### Do OLS with Effect Modifier with Robust SEs #####
+# ASSUMES MODERATOR IS BINARY
+my_ols_hc0 = function( modName, dat ){
+  
+  # make sure effect modifier is binary
+  levels = unique( dat[[modName]] )
+  if( length( levels[ !is.na(levels) ] ) > 2 ) stop("Effect modifier has more than two levels -- not allowed!")
+  
+  ols = lm( mainY ~ treat*dat[[modName]], data = dat )
+  
+  # coef name of interest could be either "treat:dat[[modName]]" or "treat:dat[[modName]]TRUE"
+  #  depending on how the effect modifier is coded
+  string = names(coef(ols))[ grepl( pattern = "treat:", x = names(coef(ols)) ) ]
+  
+  ( se.ols = sqrt( vcov(ols)[string, string] ) )
+  ( bhat.ols = coef(ols)[string] )
+  
+  # heteroskedasticity-consistent robust SEs:
+  (se.hc0 = sqrt( vcovHC( ols, type="HC0")[string, string] ) )
+  
+  tcrit = qt(.975, df = ols$df.residual)
+  t = as.numeric( abs(bhat.ols / se.hc0) )
+  
+  return( data.frame( 
+    est = bhat.ols,
+    se = se.hc0,
+    lo = bhat.ols - tcrit * se.hc0,
+    hi = bhat.ols + tcrit * se.hc0,
+    pval =  2 * ( 1 - pt(t, df = ols$df.residual ) ) ) )
+}
+
+
 ########################### FNs FOR FORMATTING RESULTS ###########################
 
 # round while keeping trailing zeroes
@@ -35,216 +152,6 @@ format_pval = function( p,
 # vapply( p, format_pval, "asdf" )
 # vapply( p, function(x) format_pval( x, star.cutoffs = c( 0.01, 0.05) ), "asdf" )
 
-
-########################### FN: RECODE VARIABLES DURING DATA PREP ###########################
-
-make_derived_vars = function(.d){
-  
-  # recode food variables
-  for ( i in allFoods){
-    .d = recode_food_Y(.d = .d,
-                       food = i)
-  }
-
-  # secondary outcome: total meat (total ounces over the week)
-  .d$totalMeat = rowSums( .d[, meats])
-  
-  # secondary outcome: total animal products (total ounces over the week)
-  .d$totalAnimProd = rowSums( .d[, animProds])
-  
-  # primary outcome: total meat + animal product consumption
-  .d$mainY = .d$totalMeat + .d$totalAnimProd
-  # binary version for measurement error sensitivity analysis
-  .d$mainYbin = .d$mainY > median( .d$mainY[.d$treat == 0], na.rm = TRUE )
-  
-  # secondary: total good plant-based foods
-  .d$totalGood = rowSums( .d[, goodPlant])
-  
-  # recode secondary psych scales
-  for ( i in secondaryY){
-    .d = recode_psych_scale(.d = .d,
-                            scale = i)
-  }
-  
-  # recode compliance (finished watching video)
-  .d$finishedVid = (.d$video.time >= 20)
-  
-  # recode awareness
-  .d$aware = (.d$guessPurpose1 == "g.meatAnimProd") & (.d$guessPurpose2 == "c.decrease")
-  
-  return(.d)
-}
-
-
-
-
-
-# yName: just the root of the string, e.g., "dairy"
-recode_food_Y = function(.d,
-                         food){
-  
-  freqString = paste(food, "Freq", sep = "")
-  amountString = paste(food, "Ounces", sep = "")
-  
-  # overwrite old frequency variable
-  .d[ , freqString ] = dplyr::recode( .d[ , freqString ],
-                                      a.Never = 0,
-                                      b.1Weekly = 1,
-                                      c.2Weekly = 2,
-                                      d.3to4Weekly = 3.5,
-                                      e.5to6Weekly = 5.5,
-                                      f.1Daily = 7,
-                                      g.2PlusDaily = 14 ) 
-  
-  # overwrite old ounces variable
-  .d[ , amountString ] = dplyr::recode( .d[ , amountString ],
-                                        a.lessThan2 = 2,
-                                        b.2to5 = 3.5,
-                                        c.moreThan5 = 5 ) 
-  
-  # make the ounces-per-week variable
-  .d[, food] = .d[ , freqString ] * .d[ , amountString ]
-  
-  return(.d)
-}
-
-
-# turns likert into numeric
-
-
-# makes composite from the Likert psych scales
-recode_psych_scale = function(.d,
-                              scale){
-  
-  # # ~~ TEST ONLY
-  # scale = "spec"
-  
-  subscales = names(.d)[ grepl( x = names(.d), pattern = scale ) ]
-  
-  for( j in subscales ){
-    .d[ , j] = dplyr::recode( .d[ , j],
-                              `Strong Agree` = 3,
-                              Agree = 2,
-                              `Lean Agree` = 1,
-                              `Don't Know / Neutral` = 0,
-                              `Lean Disagree` = -1,
-                              Disagree = -2,
-                              `Strongly Disagree` = -3 )
-  }
-  
-  # composite is mean of the subscales
-  .d[, scale] = rowMeans( .d[ , subscales] )
-  
-  return(.d)
-}
-
-# FROM OWP: 
-# # standardize a variable
-# standardize = function(x) {
-#   (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
-# }
-# 
-# # var.names: variable names to standardize (otherwise standardizes all
-# #  continuous vars)
-# make_derived_vars = function(dat,
-#                              var.names = NULL) {
-#   
-#   # if no var.names provided, standardize all continuous vars
-#   if ( is.null(var.names) ) {
-#     # find all continuous variables in dataset, not just continuous
-#     n.levels = apply( dat, 2,
-#                       function(x) length( unique( x[ !is.na(x) ] ) ) )
-#     library(dplyr)
-#     numerics = select_if(d, is.numeric)
-#     
-#     # truly continuous variables have >2 levels (not 0/1)
-#     #  and aren't factors or characters
-#     is.cont = (n.levels > 2) & ( names(dat) %in% names(numerics) )
-#     
-#     # standardize the continuous variables
-#     dat[ , is.cont ] = apply( dat[ , is.cont ],
-#                               2, 
-#                               function(x) standardize(x) )
-#   } else {
-#     # if provided variable names to standardize
-#     dat[ , var.names ] = apply( dat[ , var.names ],
-#                                 2, 
-#                                 function(x) standardize(x) )
-#   }
-#   
-#   # dichotomize the dietary quality score variable at its top tertile
-#   cutoff = as.numeric( quantile( dat$nAHEI11a, 2/3, na.rm = TRUE ) )
-#   temp = rep(NA, nrow(dat))
-#   temp[ dat$nAHEI11a > cutoff ] = 1
-#   temp[ dat$nAHEI11a <= cutoff ] = 0
-#   dat$nAHEI11a = temp
-#   
-#   return(dat)
-# }
-# 
-# # recode binary variables in several different formats into 0/1
-# # for undoing the above function
-# binarize = function(x) {
-#   
-#   # needs to be character, otherwise TRUE/FALSE and 0/1 variables
-#   # aren't distinguished in the conditional statements to follow
-#   levels.char = as.character( sort( unique(x) ) )
-#   
-#   if ( all( levels.char %in% c("a.No", "b.Yes") ) ) {
-#     x = as.character(x)
-#     xbin = rep(NA, length(x))
-#     xbin[ x == "b.Yes" ] = 1
-#     xbin[ x == "a.No" ] = 0
-#     return(xbin)
-#   } 
-#   
-#   if ( all( levels.char %in% c("FALSE", "TRUE") ) ) {
-#     x = as.character(x)
-#     xbin = rep(NA, length(x))
-#     xbin[ x == TRUE ] = 1
-#     xbin[ x == FALSE ] = 0
-#     return(xbin)
-#   } 
-#   
-#   # if the variable is already 0/1, leave it alone
-#   # this is used in the Poisson part of analysis functions
-#   # so that it can flexibly handle a binary variable coded as factor
-#   #  or as 0/1
-#   if ( all( levels.char %in% c("0", "1") ) ) return(x)
-#   
-#   stop("x needs to be either already 0/1, TRUE/FALSE, or 'a.No'/'b.Yes'")
-#   
-# }
-# 
-# # examples
-# # binarize( c(1,1,1,0,1) )
-# # binarize( c("a.No", "b.Yes") )
-# # binarize(c("No", "Yes"))
-# # binarize( c(FALSE, TRUE, FALSE) )
-
-
-########################### FN: POOL IMPUTED SEs VIA RUBIN'S RULES ###########################
-
-# see Marshall "Combining estimates" paper, pg 3
-
-# ests: ests from m imputations
-# ses: ses from m imputations
-rubin_se = function( ests, ses ){
-  
-  m = length(ests)
-  
-  # within-imputation variance
-  Ubar = mean( ses^2 )
-  
-  # between-imputation variance
-  B = (1 / (m-1)) * sum( ( ests - mean(ests) )^2 )
-  
-  # overall SE
-  return( sqrt( Ubar + (1 + (1/m)) * B ) )
-}
-
-
-################################ MISCELLANEOUS ################################
 
 # for reproducible manuscript-writing
 # adds a row to the file "stats_for_paper" with a new statistic or value for the manuscript

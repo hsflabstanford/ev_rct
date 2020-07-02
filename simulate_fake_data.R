@@ -62,8 +62,6 @@ d = fabricate( N = N,
                # activ = rnorm( N, mean = .2 * treat, sd = 1),
                
                ##### Misc #####
-               # create point mass at 20
-               video.time = pmin(20, runif(n=N, min=16, max=30)),
                 
                # awareness probe #1
                guessPurpose1 = draw_categorical( prob = rep(1/10, 10),
@@ -87,6 +85,13 @@ d = fabricate( N = N,
                                                               "d.dontKnow") ),
               
 )
+
+#### Add Time Spent on Video #####
+d$video.time = 0  # no one in control group watches video
+d$video.time[ d$treat == 1] = pmin(20, runif(n=sum(d$treat == 1), min=16, max=30))  # for treated group, create point mass at 20
+# sanity check
+d %>% group_by(treat) %>%
+  summarise( mean(video.time) )
 
 ##### Add Secondary Psychological Outcomes #####
 secondaryY = c("spec",

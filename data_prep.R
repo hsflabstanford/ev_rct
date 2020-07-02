@@ -18,7 +18,7 @@ imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingV
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
 
 setwd(code.dir)
-source("helper.R")
+source("helper_prep.R")
 
 
 setwd(raw.data.dir)
@@ -28,8 +28,8 @@ d = read.csv("raw_FAKE_data.csv")
 overwrite.res = TRUE
 
 # should we impute from scratch or read in saved datasets?
-impute.from.scratch = FALSE
-M = 5 #~~~ increase later
+impute.from.scratch = TRUE
+M = 10
 
 
 
@@ -164,6 +164,14 @@ for ( i in 1:M ) {
 CreateTableOne(data=imp,
                includeNA = TRUE)  # second argument only works for categoricals
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                    PRETTIFY VARIABLES
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+d2$treat.pretty = NA
+d2$treat.pretty[ d2$treat == 0 ] = "Control"
+d2$treat.pretty[ d2$treat == 1 ] = "Documentary"
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                    WRITE RESULTS

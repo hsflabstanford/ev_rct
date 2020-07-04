@@ -28,9 +28,8 @@ d = read.csv("raw_FAKE_data.csv")
 overwrite.res = TRUE
 
 # should we impute from scratch or read in saved datasets?
-impute.from.scratch = TRUE
+impute.from.scratch = FALSE
 M = 10
-
 
 
 ##### Lists of Variables #####
@@ -53,6 +52,12 @@ fu.vars = c(foodVars,
             names(d)[ grepl(pattern = "activ", x = names(d) ) ],
             names(d)[ grepl(pattern = "guessPurpose", x = names(d) ) ] )
 
+
+##### Recode Character Vars as Factors #####
+# this is needed to avoid "constant" problem in mice's loggedEvents
+sum(sapply(d, is.character))  # check number of character vars
+d = d %>% mutate_if(sapply(d, is.character), as.factor)
+sum(sapply(d, is.character))  # check again; should be 0
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

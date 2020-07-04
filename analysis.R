@@ -34,6 +34,12 @@ source("helper_analysis.R")
 
 overwrite.res = TRUE
 
+# res.raw will be a table of estimates for main outcome, secondaries, effect modifiers
+# res.overleaf will be individual stats formatted for piping into Overleaf
+if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
+if ( overwrite.res == TRUE & exists("res.overleaf") ) rm(res.raw)
+
+
 
 ##### Dataset #####
 setwd(prepped.data.dir)
@@ -157,7 +163,9 @@ ggplot( data = dcc,
 
 # We will conduct a counterpart to the primary analysis for each
 # secondary outcome, comprising the secondary consumption outcomes as well as the exploratory
-# psychological outcomes. We will report inference for all secondary outcomes both with and
+# psychological outcomes. 
+
+# We will report inference for all secondary outcomes both with and
 # without Bonferroni correction, counting one test per secondary outcome. As an outcome-wide
 # measure of the intervention’s effect on the secondary outcomes, we will report the number
 # of secondary outcomes with a Bonferroni-corrected p < 0.05. This can be interpreted with
@@ -169,13 +177,26 @@ ggplot( data = dcc,
 # mi.res = lapply( imps, function(.d) eval(parse(text = fake)) )
 
 
-##### Main Consumption Outcome #####
-if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
+##### Analyze Each Outcome (Including Primary) #####
 
-for ( i in c("mainY", secFoodY) ) {
+# for Bonferroni
+n.secY = sum( length(secFoodY), length(psychY) )
+( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
+
+for ( i in c("mainY", secFoodY, psychY ) ) {
   mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
   mi.res = do.call(what = rbind, mi.res)
   new.row = mi_pool(ests = mi.res$est, ses = mi.res$se)
+  
+  # Bonferroni-corrected p-value
+  if( i %in% c(secFoodY, psychY) ) {
+    new.row$pvalBonf = min( 1, new.row$pval * n.secY )
+    new.row$group = "secY"
+  } else if (i == "mainY") {
+    # for primary outcome
+    new.row$pvalBonf = NA
+    new.row$group = "mainY"
+  }
   
   # add name of this analysis
   string = paste(i, " MI", sep = "")
@@ -187,6 +208,7 @@ for ( i in c("mainY", secFoodY) ) {
 res.raw
 
 
+##### One-Off Stats for Paper #####
 update_result_csv( name = "mainY diff",
                    section = 0,
                    value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
@@ -203,6 +225,19 @@ update_result_csv( name = "mainY diff pval",
                    section = 0,
                    value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
                    print = TRUE )
+
+update_result_csv( name = "Bonferroni alpha secY",
+                   section = 0,
+                   value = round( alpha2, 4 ),
+                   print = TRUE )
+
+update_result_csv( name = "Number secY pass Bonf",
+                   section = 0,
+                   value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ),
+                   print = TRUE )
+
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                               TABLE 3: EFFECT MODIFIERS
@@ -225,13 +260,19 @@ CreateTableOne( vars = effect.mods,
                 data = dcc,
                 includeNA = TRUE)  # last only works for NA
 
+# for Bonferroni
+n.mods = length(effect.mods)
+( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
+
 
 for ( i in effect.mods ) {
   
   mi.res = lapply( imps, function(.d) my_ols_hc0(modName = i, dat = .d) )
   mi.res = do.call(what = rbind, mi.res)
   new.row = mi_pool(ests = mi.res$est, ses = mi.res$se)
-  
+  new.row$pvalBonf = min( 1, new.row$pval * n.mods )
+  new.row$group = "mod"
+
   # add name of this analysis
   string = paste(i, " MI", sep = "")
   new.row = add_column(new.row, analysis = string, .before = 1)
@@ -240,6 +281,19 @@ for ( i in effect.mods ) {
 }
 
 res.raw
+
+
+##### One-Off Stats for Paper #####
+update_result_csv( name = "Bonferroni alpha mods",
+                   section = 0,
+                   value = round( alpha3, 4 ),
+                   print = TRUE )
+
+update_result_csv( name = "Number mods pass Bonf",
+                   section = 0,
+                   value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
+                   print = TRUE )
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   COST-EFFECTIVENESS
@@ -267,13 +321,6 @@ mi.res = lapply( imps, function(.d) my_log_RR(dat = .d) )
 mi.res = do.call(what = rbind, mi.res)
 pooled = mi_pool(ests = mi.res$est, ses = mi.res$se)  # all on log-RR scale
 
-eval = suppressMessages( multi_evalue( biases = misclassification("outcome"),
-                                       est = RR(exp(new.row$est)),
-                                       lo = RR(exp(new.row$lo)),
-                                       hi = RR(exp(new.row$hi)),
-                                       true = 1 ) )
-
-
 update_result_csv( name = "mainYLow RR",
                    section = 0,
                    value = round( exp(pooled$est), 2 ) )
@@ -286,20 +333,14 @@ update_result_csv( name = "mainYLow RR hi",
                    section = 0,
                    value = round( exp(pooled$hi), 2 ) )
 
-update_result_csv( name = "meas error evalue est",
-                  section = 0,
-                  value = round( eval[2,"point"], 2 ) )
-
-# use lower CI limit
-update_result_csv( name = "meas error evalue lo",
-                   section = 0,
-                   value = round( eval[2,"lower"], 2 ),
-                   print = TRUE)
 
 # **for differential measurement error to completely explain away the the effect, 
 #  magnitude of differential measurement error (i.e., the maximum direct effect of 
 #  intervention on mismeasured Y*, not through the true Y), must be at least as large
 #  as the observed RR itself
+
+# so we will just report the RRs themselves
+
 
 ############################### SUBJECT AWARENESS ################################ 
 
@@ -383,8 +424,6 @@ update_result_csv( name = "mainY CC pval",
                    value = format_pval( tres.cc$pval, 2 ),
                    print = TRUE )
 
-# ~~ add this to res.raw as well
-
 
 ############################### EFFECTS OF INTERVENTION NONCOMPLIANCE ################################ 
 
@@ -395,34 +434,17 @@ update_result_csv( name = "mainY CC pval",
 # 20 minutes, the duration of the video. This analysis estimates a local average treatment effect
 # (Angrist et al., 1996).
 
-dat = dcc
+##### Look at CC Data #####
+# look at relationship between instrument (treat) and X (video duration)
+# in CC data
+dcc %>% group_by(treat) %>%
+  summarise( mean(video.time, na.rm = TRUE ),
+             sum( finishedVid, na.rm = TRUE) )
+table(dcc$treat, dcc$finishedVid)
+# first-stage model (linear probability model; ignore the inference):
+summary( lm( finishedVid ~ treat, data = dcc) )
 
-
-my_ivreg = function(dat){
-
-  iv = ivreg(mainY ~ treat | finishedVid, data = dat)
-  
-  est = coef(iv)["treat"]
-  summ = summary(iv, vcov = sandwich, diagnostics = TRUE)
-  se = sqrt( summ$vcov["treat", "treat"] )
-  t = abs(est)/se
-  tcrit = qt(.975, df = iv$df.residual)
-  
-  return( data.frame( 
-    est = est,
-    se = se,
-    lo = est - tcrit * se,
-    hi = est + tcrit * se,
-    pval = 2 * ( 1 - pt(t, df = iv$df.residual) ),
-    # test for weak instruments
-    # from AER package docs:
-    # "an F test of the first stage regression for weak instruments"
-    # so we want the stage 1 p-value to be LOW (i.e., non-weak instrument)
-    stage1.pval = summ$diagnostics["Weak instruments", "p-value"] ) )
-}
-
-
-
+##### IV for MI Datasets #####
 mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
 mi.res = do.call(what = rbind, mi.res)
 pooled = mi_pool(ests = mi.res$est, ses = mi.res$se) 
@@ -432,12 +454,13 @@ pooled = mi_pool(ests = mi.res$est, ses = mi.res$se)
 mi.res$stage1.pval
 # why always the same??
 
-
+# sanity check
 # confirm the fact that the first-stage model has the same p-value for every imputation
-# first-stage model:
-summary( glm( treat ~ finishedVid, data = imps[[3]], family = "binomial") )
-# this is indeed where the weak instruments p-value is coming from
-summary( ivreg(mainY ~ treat | finishedVid, data = imps[[3]]), diagnostics = TRUE )
+# first-stage model (linear probability model; ignore the inference):
+summary( lm( finishedVid ~ treat, data = imps[[3]]) )
+# this seems to be where where the weak instruments p-value is coming from
+summary( ivreg(mainY ~ finishedVid | treat, data = imps[[3]]), diagnostics = TRUE )
+
 
 
 update_result_csv( name = "mainY IV diff",
@@ -457,4 +480,3 @@ update_result_csv( name = "mainY IV pval",
                    value = format_pval( pooled$pval, 2 ),
                    print = TRUE )
 
-# looks crazy in simulated data only because the instrument is completely weak

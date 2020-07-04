@@ -115,6 +115,30 @@ my_ols_hc0 = function( modName, dat ){
     pval =  2 * ( 1 - pt(t, df = ols$df.residual ) ) ) )
 }
 
+##### IV Regression #####
+
+my_ivreg = function(dat){
+  
+  iv = ivreg(mainY ~ finishedVid | treat, data = dat)
+  
+  est = coef(iv)["finishedVidTRUE"]
+  summ = summary(iv, vcov = sandwich, diagnostics = TRUE)
+  se = sqrt( summ$vcov["finishedVidTRUE", "finishedVidTRUE"] )
+  t = abs(est)/se
+  tcrit = qt(.975, df = iv$df.residual)
+  
+  return( data.frame( 
+    est = est,
+    se = se,
+    lo = est - tcrit * se,
+    hi = est + tcrit * se,
+    pval = 2 * ( 1 - pt(t, df = iv$df.residual) ),
+    # test for weak instruments
+    # from AER package docs:
+    # "an F test of the first stage regression for weak instruments"
+    # so we want the stage 1 p-value to be LOW (i.e., non-weak instrument)
+    stage1.pval = summ$diagnostics["Weak instruments", "p-value"] ) )
+}
 
 ########################### FNs FOR FORMATTING RESULTS ###########################
 
@@ -173,34 +197,34 @@ update_result_csv = function( name,
   
   
   if ( "stats_for_paper.csv" %in% list.files() ) {
-    res = read.csv( "stats_for_paper.csv",
+    res.overleaf <<- read.csv( "stats_for_paper.csv",
                     stringsAsFactors = FALSE,
                     colClasses = rep("character", 3 ) )
     
     # if this entry is already in the results file, overwrite the
     #  old one
-    if ( all(name %in% res$name) ) res[ res$name %in% name, ] = new.rows
-    else res = rbind(res, new.rows)
+    if ( all(name %in% res.overleaf$name) ) res.overleaf[ res.overleaf$name %in% name, ] <<- new.rows
+    else res.overleaf <<- rbind(res.overleaf, new.rows)
   }
   
   if ( !"stats_for_paper.csv" %in% list.files() ) {
-    res = new.rows
+    res.overleaf <<- new.rows
   }
   
-  write.csv( res, 
+  write.csv( res.overleaf, 
              "stats_for_paper.csv",
              row.names = FALSE,
              quote = FALSE )
   
   # also write to Overleaf
   setwd(overleaf.dir)
-  write.csv( res, 
+  write.csv( res.overleaf, 
              "stats_for_paper.csv",
              row.names = FALSE,
              quote = FALSE )
   
   if ( print == TRUE ) {
-    View(res)
+    View(res.overleaf)
   }
 }
 

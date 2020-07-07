@@ -1,11 +1,6 @@
 
 rm(list=ls())
 
-# bm
-# to do:
-# - mice is being a jerk about collinearity after I re-installed it...why??
-# - had just regenerated video.time to be always 0 for control group; make sure IV still works okay
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                      PRELIMINARIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -177,6 +172,9 @@ ggplot( data = dcc,
 # mi.res = lapply( imps, function(.d) eval(parse(text = fake)) )
 
 
+# ~~~ temp only
+if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
+
 ##### Analyze Each Outcome (Including Primary) #####
 
 # for Bonferroni
@@ -186,8 +184,14 @@ n.secY = sum( length(secFoodY), length(psychY) )
 for ( i in c("mainY", secFoodY, psychY ) ) {
   mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
   mi.res = do.call(what = rbind, mi.res)
-  new.row = mi_pool(ests = mi.res$est, ses = mi.res$se)
   
+  part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+  part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+  names(part2) = paste( "g.", names(part2), sep = "" )
+  
+  new.row = cbind(part1, part2)
+  
+
   # Bonferroni-corrected p-value
   if( i %in% c(secFoodY, psychY) ) {
     new.row$pvalBonf = min( 1, new.row$pval * n.secY )
@@ -225,6 +229,18 @@ update_result_csv( name = "mainY diff pval",
                    section = 0,
                    value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
                    print = TRUE )
+
+update_result_csv( name = "mainY diff g",
+                   section = 0,
+                   value = round( res.raw$g.est[ res.raw$analysis == "mainY MI"], 2 ) )
+
+update_result_csv( name = "mainY diff g lo",
+                   section = 0,
+                   value = round( res.raw$g.lo[ res.raw$analysis == "mainY MI"], 2 ) )
+
+update_result_csv( name = "mainY diff g hi",
+                   section = 0,
+                   value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "Bonferroni alpha secY",
                    section = 0,
@@ -265,6 +281,8 @@ n.mods = length(effect.mods)
 ( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
 
 
+#### ~~ NEED TO UPDATE THIS TO HAVE ALL EFFECT MODIFIERS IN REGRESSION SIMULTANEOUSLY
+# AND TO DO 
 for ( i in effect.mods ) {
   
   mi.res = lapply( imps, function(.d) my_ols_hc0(modName = i, dat = .d) )

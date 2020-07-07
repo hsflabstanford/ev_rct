@@ -8,6 +8,27 @@ my_ttest = function( yName, dat ){
                  data = dat,
                  var.equal = FALSE )
   
+  dat$Y = dat[[yName]]
+  tab = suppressMessages( dat %>% group_by(treat) %>%
+                            summarise( m = mean(Y),
+                                       sd = sd(Y),
+                                       n = n() ) )
+  
+  # standardized mean difference (Hedges' g)
+  es = escalc( m1i = tab[2,]$m,
+               sd1i = tab[2,]$sd,
+               n1i = tab[2,]$n,
+               
+               m2i = tab[1,]$m,
+               sd2i = tab[1,]$sd,
+               n2i = tab[1,]$n,
+               
+               # Hedges' g by default
+               measure = "SMD")
+  summ = summary(es)
+  
+  #browser()
+  
   return( data.frame( # documentary - control
     est = tres$estimate[2] - tres$estimate[1],
     se = tres$stderr,
@@ -15,7 +36,13 @@ my_ttest = function( yName, dat ){
     #  control - documentary:
     lo = -tres$conf.int[2],
     hi = -tres$conf.int[1],
-    pval = tres$p.value ) )
+    pval = tres$p.value,
+    
+    # standardized mean difference (Hedges' g)
+    g = es$yi,
+    g.se = summ$sei,
+    g.lo = summ$ci.lb,
+    g.hi = summ$ci.ub ) )
 }
 
 

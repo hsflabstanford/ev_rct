@@ -61,7 +61,7 @@ my_ols_hc0 = function( coefName, dat, ols ){
   t = as.numeric( abs(bhat.ols / se.hc0) )
   
   # standardized mean difference
-  # ~~note for paper: standardizing by SD(Y|X) rather than SD(Y|X,Z) where
+  # **note for paper: standardizing by SD(Y|X) rather than SD(Y|X,Z) where
   #  Z is the effect modifiers because former is more directly comparable
   #  to the effect sizes in main analysis
   # note also that we need to calculate sd.pooled for each MI dataset rather than 

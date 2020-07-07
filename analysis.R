@@ -15,6 +15,7 @@ library(sandwich)
 library(EValue)
 library(metafor)
 library(AER)
+library(harmonicmeanp)
 
 ##### Working Directories #####
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
@@ -193,10 +194,15 @@ for ( i in c("mainY", secFoodY, psychY ) ) {
   if( i %in% c(secFoodY, psychY) ) {
     new.row$pvalBonf = min( 1, new.row$pval * n.secY )
     new.row$group = "secY"
+    
+    if( i %in% secFoodY) new.row$group.specific = "secY food"
+    if( i %in% psychY) new.row$group.specific = "secY psych"
+    
   } else if (i == "mainY") {
     # for primary outcome
     new.row$pvalBonf = NA
     new.row$group = "mainY"
+    new.row$group.specific = "mainY"
   }
   
   # add name of this analysis
@@ -209,7 +215,7 @@ for ( i in c("mainY", secFoodY, psychY ) ) {
 res.raw
 
 
-##### One-Off Stats for Paper #####
+##### One-Off Stats for Paper: Main Estimates #####
 update_result_csv( name = "mainY diff",
                    section = 0,
                    value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
@@ -239,6 +245,8 @@ update_result_csv( name = "mainY diff g hi",
                    section = 0,
                    value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
 
+
+##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
 update_result_csv( name = "Bonferroni alpha secY",
                    section = 0,
                    value = round( alpha2, 4 ),
@@ -249,6 +257,24 @@ update_result_csv( name = "Number secY pass Bonf",
                    value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ),
                    print = TRUE )
 
+# harmonic mean p-values by subsets of effect modifiers
+update_result_csv( name = "HMP all secY",
+                   section = 0,
+                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
+                                         L = sum(res.raw$group == "secY") ), 2 ),
+                   print = TRUE )
+
+update_result_csv( name = "HMP food secY",
+                   section = 0,
+                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
+                                               L = sum(res.raw$group.specific == "secY food") ), 2 ),
+                   print = TRUE )
+
+update_result_csv( name = "HMP psych secY",
+                   section = 0,
+                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
+                                               L = sum(res.raw$group.specific == "secY psych") ), 2 ),
+                   print = TRUE )
 
 
 
@@ -284,8 +310,7 @@ coefNames = c("treat:female",
               "treat:cauc",
               "treat:democrat")
 
-#### ~~ NEED TO UPDATE THIS TO HAVE ALL EFFECT MODIFIERS IN REGRESSION SIMULTANEOUSLY
-# AND TO DO 
+
 for ( i in coefNames ) {
   
   mi.res = lapply( imps, function(.d) {
@@ -305,6 +330,7 @@ for ( i in coefNames ) {
   
   new.row$pvalBonf = min( 1, new.row$pval * n.mods )
   new.row$group = "mod"
+  new.row$group.specific = "mod"
 
   # add name of this analysis
   string = paste(i, " MI", sep = "")
@@ -326,6 +352,7 @@ update_result_csv( name = "Number mods pass Bonf",
                    section = 0,
                    value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
                    print = TRUE )
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

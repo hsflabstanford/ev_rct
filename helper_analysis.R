@@ -46,6 +46,89 @@ my_ttest = function( yName, dat ){
 }
 
 
+##### Do OLS with Effect Modifier with Robust SEs #####
+
+# ols: the OLS model with all the effect modifiers
+my_ols_hc0 = function( coefName, dat, ols ){
+  
+  ( se.ols = sqrt( vcov(ols)[coefName, coefName] ) )
+  ( bhat.ols = coef(ols)[coefName] )
+  
+  # heteroskedasticity-consistent robust SEs:
+  (se.hc0 = sqrt( vcovHC( ols, type="HC0")[coefName, coefName] ) )
+  
+  tcrit = qt(.975, df = ols$df.residual)
+  t = as.numeric( abs(bhat.ols / se.hc0) )
+  
+  # standardized mean difference
+  # ~~note for paper: standardizing by SD(Y|X) rather than SD(Y|X,Z) where
+  #  Z is the effect modifiers because former is more directly comparable
+  #  to the effect sizes in main analysis
+  # note also that we need to calculate sd.pooled for each MI dataset rather than 
+  #  just transforming the final pooled estimate to an SMD, because SD(Y|X) differs 
+  #  in each imputed dataset
+  tab = suppressMessages( dat %>% group_by(treat) %>%
+                            summarise( m = mean(mainY),
+                                       sd = sd(mainY),
+                                       n = n() ) )
+  num = (tab$n[1] - 1) * tab$sd[1]^2 + (tab$n[2] - 1) * tab$sd[2]^2
+  denom = (tab$n[1] - 1) + (tab$n[2] - 1)
+  sd.pooled = sqrt(num/denom)
+  # adjustment factor for Hedges' g
+  # https://www.statisticshowto.com/hedges-g/#:~:text=Hedges'%20g%20is%20a%20measure,of%20up%20to%20about%204%25.
+  N = sum(tab$n)
+  J = ( (N-3) / (N-2.25) ) * sqrt( (N-2) / N )
+  # factor to multiply with the raw mean difference to get Hedges' g
+  term = J / sd.pooled
+  
+  return( data.frame(
+    est = bhat.ols,
+    se = se.hc0,
+    lo = bhat.ols - tcrit * se.hc0,
+    hi = bhat.ols + tcrit * se.hc0,
+    pval =  2 * ( 1 - pt(t, df = ols$df.residual ) ),
+    
+    # standardized mean difference (Hedges' g)
+    g = bhat.ols * term,
+    g.se = se.hc0 * term,
+    g.lo = (bhat.ols - tcrit * se.hc0) * term,
+    g.hi = (bhat.ols + tcrit * se.hc0) * term ) )
+}
+
+
+
+# OLD VERSION THAT FITS A SEPARATE MODEL FOR EACH EFFECT MODIFIER:
+# # ASSUMES MODERATOR IS BINARY
+# my_ols_hc0 = function( modName, dat ){
+#   
+#   # make sure effect modifier is binary
+#   levels = unique( dat[[modName]] )
+#   if( length( levels[ !is.na(levels) ] ) > 2 ) stop("Effect modifier has more than two levels -- not allowed!")
+#   
+#   ols = lm( mainY ~ treat*dat[[modName]], data = dat )
+#   
+#   # coef name of interest could be either "treat:dat[[modName]]" or "treat:dat[[modName]]TRUE"
+#   #  depending on how the effect modifier is coded
+#   string = names(coef(ols))[ grepl( pattern = "treat:", x = names(coef(ols)) ) ]
+#   
+#   ( se.ols = sqrt( vcov(ols)[string, string] ) )
+#   ( bhat.ols = coef(ols)[string] )
+#   
+#   # heteroskedasticity-consistent robust SEs:
+#   (se.hc0 = sqrt( vcovHC( ols, type="HC0")[string, string] ) )
+#   
+#   tcrit = qt(.975, df = ols$df.residual)
+#   t = as.numeric( abs(bhat.ols / se.hc0) )
+#   
+#   return( data.frame( 
+#     est = bhat.ols,
+#     se = se.hc0,
+#     lo = bhat.ols - tcrit * se.hc0,
+#     hi = bhat.ols + tcrit * se.hc0,
+#     pval =  2 * ( 1 - pt(t, df = ols$df.residual ) ) ) )
+# }
+
+
 ##### Fn: Nicely Organize 2-proportion Z-test results #####
 # for the sensitivity analysis with dichotomized outcome
 # returns on log-RR scale
@@ -111,36 +194,7 @@ mi_pool = function( ests, ses ){
                       pval = p.pool ) )
 }
 
-##### Do OLS with Effect Modifier with Robust SEs #####
-# ASSUMES MODERATOR IS BINARY
-my_ols_hc0 = function( modName, dat ){
-  
-  # make sure effect modifier is binary
-  levels = unique( dat[[modName]] )
-  if( length( levels[ !is.na(levels) ] ) > 2 ) stop("Effect modifier has more than two levels -- not allowed!")
-  
-  ols = lm( mainY ~ treat*dat[[modName]], data = dat )
-  
-  # coef name of interest could be either "treat:dat[[modName]]" or "treat:dat[[modName]]TRUE"
-  #  depending on how the effect modifier is coded
-  string = names(coef(ols))[ grepl( pattern = "treat:", x = names(coef(ols)) ) ]
-  
-  ( se.ols = sqrt( vcov(ols)[string, string] ) )
-  ( bhat.ols = coef(ols)[string] )
-  
-  # heteroskedasticity-consistent robust SEs:
-  (se.hc0 = sqrt( vcovHC( ols, type="HC0")[string, string] ) )
-  
-  tcrit = qt(.975, df = ols$df.residual)
-  t = as.numeric( abs(bhat.ols / se.hc0) )
-  
-  return( data.frame( 
-    est = bhat.ols,
-    se = se.hc0,
-    lo = bhat.ols - tcrit * se.hc0,
-    hi = bhat.ols + tcrit * se.hc0,
-    pval =  2 * ( 1 - pt(t, df = ols$df.residual ) ) ) )
-}
+
 
 ##### IV Regression #####
 

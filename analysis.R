@@ -172,8 +172,6 @@ ggplot( data = dcc,
 # mi.res = lapply( imps, function(.d) eval(parse(text = fake)) )
 
 
-# ~~~ temp only
-if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
 
 ##### Analyze Each Outcome (Including Primary) #####
 
@@ -188,7 +186,6 @@ for ( i in c("mainY", secFoodY, psychY ) ) {
   part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
   part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
   names(part2) = paste( "g.", names(part2), sep = "" )
-  
   new.row = cbind(part1, part2)
   
 
@@ -280,14 +277,32 @@ CreateTableOne( vars = effect.mods,
 n.mods = length(effect.mods)
 ( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
 
+# names of coefficient estimates as they'll appear in the model
+coefNames = c("treat:female",
+              "treat:oldTRUE",
+              "treat:collegeGradTRUE",
+              "treat:cauc",
+              "treat:democrat")
 
 #### ~~ NEED TO UPDATE THIS TO HAVE ALL EFFECT MODIFIERS IN REGRESSION SIMULTANEOUSLY
 # AND TO DO 
-for ( i in effect.mods ) {
+for ( i in coefNames ) {
   
-  mi.res = lapply( imps, function(.d) my_ols_hc0(modName = i, dat = .d) )
+  mi.res = lapply( imps, function(.d) {
+              # fit one model with all effect modifiers
+              string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+              ols = lm( eval( parse( text = string ) ), data = .d )
+              
+              my_ols_hc0(coefName = i, dat = .d, ols = ols)
+              }  )
+  
   mi.res = do.call(what = rbind, mi.res)
-  new.row = mi_pool(ests = mi.res$est, ses = mi.res$se)
+  
+  part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+  part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+  names(part2) = paste( "g.", names(part2), sep = "" )
+  new.row = cbind(part1, part2)
+  
   new.row$pvalBonf = min( 1, new.row$pval * n.mods )
   new.row$group = "mod"
 

@@ -17,7 +17,7 @@ library(testthat)
 
 ##### Working Directories #####
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
 county.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/County politics data"
 imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
@@ -158,10 +158,12 @@ counties[ (nrow(counties) - 5) : nrow(counties), ]  # most liberal
 #                                 SIMPLIFY AND SAVE DATASET
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
+counties$stateCounty = paste( counties$state, counties$county, sep = " ")
+
 setwd(prepped.data.dir)
 
 if ( overwrite.res == TRUE ){
-  write.csv(counties, "counties_prepped.csv", row.names = FALSE)
+  write.csv(counties %>% select(stateCounty, pDem), "counties_prepped.csv", row.names = FALSE)
 } else {
   message("Not overwriting the old results because overwrite.res == FALSE, FYI")
 }

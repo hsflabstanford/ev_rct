@@ -1,13 +1,17 @@
 
 # take the code for a ride
 
-# to do: look into voter registration by zip code
-
 data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
+# this is just for retrieving the prepped county data for simulation purposes:
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"  
 
 setwd(code.dir)
 source("simulate_helper.R")
+
+setwd(prepped.data.dir)
+cn = read.csv("counties_prepped.csv")
+
 
 library(fabricatr)
 
@@ -43,9 +47,12 @@ d = fabricate( N = N,
                EAsian = rbinom( prob = .1, size = 1, n = N),
                SEAsian = rbinom( prob = .1, size = 1, n = N),
                
-               # need to do this one! 
-               #zip = 
+               # state and county
+               stateCounty = draw_categorical( prob = rep( 1/nrow(cn), nrow(cn) ),
+                                         N = N,
+                                         category_labels = cn$stateCounty ),
                
+               # individual party affiliation
                party = draw_categorical( prob = c(.35, .35, .15, .15),
                                          N = N,
                                          category_labels = c("a.Democrat",
@@ -53,14 +60,7 @@ d = fabricate( N = N,
                                                              "c.Indep",
                                                              "d.Other") ),
                
-               # ##### Secondary Outcomes #####
-               # # sub-measures of speciesism
-               # spec1 = draw_likert(),
-               # 
-               # dom = rnorm( N, mean = 0, sd = 1),  # no effect with this one
-               # 
-               # activ = rnorm( N, mean = .2 * treat, sd = 1),
-               
+
                ##### Misc #####
                 
                # awareness probe #1

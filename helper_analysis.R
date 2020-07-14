@@ -322,7 +322,7 @@ table1_add_row = function( x, # vector
                            num.digits = 2,
                            countNA = TRUE,
                            .tab1 = NULL,
-                           print = TRUE ) {
+                           print = FALSE ) {
   
   useNA = ifelse( countNA == TRUE, "ifany", "no" )
   
@@ -420,6 +420,12 @@ make_table_one = function(.d){
   t = table1_add_row( x = .d$party,
                       var.header = "Political party",  
                       type = "cat",
+                      countNA = TRUE,
+                      .tab1 = t)
+  
+  t = table1_add_row( x = .d$pDem,
+                      var.header = "County liberalism",  
+                      type = "cont",
                       countNA = TRUE,
                       .tab1 = t)
   

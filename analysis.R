@@ -20,7 +20,6 @@ library(harmonicmeanp)
 ##### Working Directories #####
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-county.prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
 imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
 results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Results from R (fake)"
@@ -70,19 +69,19 @@ foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
 
 # exploratory psych variables
 psychY = c("spec",
-               "dom",
-               "activ")
+           "dom",
+           "activ")
 
 # secondary food outcomes
 secFoodY = c("totalMeat",
-                   "totalAnimProd",
-                   meats,
-                   animProds,
-                   "totalGood")
+             "totalAnimProd",
+             meats,
+             animProds,
+             "totalGood")
 
 fu.vars = c(foodVars, psychY, "aware" )
 
-# raw demographics, prior to collapsing categories for effect modification analyses
+# raw demographics, prior to collapsing catsegories for effect modification analyses
 demo.raw = c("sex",
              "age",
              "educ",
@@ -95,32 +94,24 @@ demo.raw = c("sex",
              "SAsian",
              "EAsian",
              "SEAsian",
-             "party")
+             "party",
+             "pDem")
 
 effect.mods = c("female",
                 "old",
                 "collegeGrad",
                 "cauc",  # probably will be the very dominant category
-                "democrat")
-# ~~need to add something about political affliation of their zip code
+                "democrat",
+                "pDem")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 DESCRIPTIVE & TABLE 1
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 ##### Table 1 #####
-CreateTableOne( vars = demo.raw, 
-                strata = "treat", 
-                data = d,
-                includeNA = TRUE)  # last only works for NA
-
-if(exists("t")) rm("t")
-
-
-
 # stratify demographics by treatment group
-t1.treat = make_table_one(.d = d %>% filter( treat == 1) )
-t1.cntrl = make_table_one(.d = d %>% filter( treat == 0) )
+t1.treat = make_table_one(.d = d %>% filter( treat == 1 ) )
+t1.cntrl = make_table_one(.d = d %>% filter( treat == 0 ) )
 
 t1 = data.frame( Characteristic = t1.treat$Characteristic,
                  Intervention = t1.treat$Summary,
@@ -190,7 +181,7 @@ for ( i in c("mainY", secFoodY, psychY ) ) {
   names(part2) = paste( "g.", names(part2), sep = "" )
   new.row = cbind(part1, part2)
   
-
+  
   # Bonferroni-corrected p-value
   if( i %in% c(secFoodY, psychY) ) {
     new.row$pvalBonf = min( 1, new.row$pval * n.secY )
@@ -262,7 +253,7 @@ update_result_csv( name = "Number secY pass Bonf",
 update_result_csv( name = "HMP all secY",
                    section = 0,
                    value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
-                                         L = sum(res.raw$group == "secY") ), 2 ),
+                                               L = sum(res.raw$group == "secY") ), 2 ),
                    print = TRUE )
 
 update_result_csv( name = "HMP food secY",
@@ -309,18 +300,19 @@ coefNames = c("treat:female",
               "treat:oldTRUE",
               "treat:collegeGradTRUE",
               "treat:cauc",
-              "treat:democrat")
+              "treat:democrat",
+              "treat:pDem")
 
 
 for ( i in coefNames ) {
   
   mi.res = lapply( imps, function(.d) {
-              # fit one model with all effect modifiers
-              string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
-              ols = lm( eval( parse( text = string ) ), data = .d )
-              
-              my_ols_hc0(coefName = i, dat = .d, ols = ols)
-              }  )
+    # fit one model with all effect modifiers
+    string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+    ols = lm( eval( parse( text = string ) ), data = .d )
+    
+    my_ols_hc0(coefName = i, dat = .d, ols = ols)
+  }  )
   
   mi.res = do.call(what = rbind, mi.res)
   
@@ -332,7 +324,7 @@ for ( i in coefNames ) {
   new.row$pvalBonf = min( 1, new.row$pval * n.mods )
   new.row$group = "mod"
   new.row$group.specific = "mod"
-
+  
   # add name of this analysis
   string = paste(i, " MI", sep = "")
   new.row = add_column(new.row, analysis = string, .before = 1)
@@ -363,6 +355,8 @@ update_result_csv( name = "Number mods pass Bonf",
 # We will estimate the cost of disseminating the intervention using
 # estimates from The Humane League's actual program that is currently doing so. We will
 # use these cost figures to give cost-effectiveness estimates in the form of, for example, dollars spent per ounce of reduced meat and animal product consumption.
+
+# ~~~ to be added
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -510,10 +504,9 @@ mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
 mi.res = do.call(what = rbind, mi.res)
 pooled = mi_pool(ests = mi.res$est, ses = mi.res$se) 
 
-# ~~ look at this manually to make sure we don't have a weak instrument
+# look at this manually to make sure we don't have a weak instrument
 #  (though that seems inconceivable in this case):
 mi.res$stage1.pval
-# why always the same??
 
 # sanity check
 # confirm the fact that the first-stage model has the same p-value for every imputation

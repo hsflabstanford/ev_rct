@@ -14,7 +14,7 @@ library(tableone)
 ##### Working Directories #####
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-county.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/County politics data"
+county.prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
 imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
 
@@ -25,16 +25,17 @@ source("helper_prep.R")
 setwd(raw.data.dir)
 d = read.csv("raw_FAKE_data.csv")
 
-# county-level politics data
-setwd(county.data.dir)
-zip = read.csv("countypres_2000-2016.csv")
-
+# merge in county-level politics data (already prepped by data_prep_counties.R)
+#  this just adds the variable pDem to the dataset
+setwd(county.prepped.data.dir)
+cn = read.csv("counties_prepped.csv")
+d = merge(d, cn, by = "stateCounty")
 
 # overwrite old results?
 overwrite.res = TRUE
 
 # should we impute from scratch or read in saved datasets?
-impute.from.scratch = FALSE
+impute.from.scratch = TRUE
 M = 10
 
 

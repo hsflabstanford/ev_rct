@@ -1,5 +1,21 @@
 ########################### FN: RECODE VARIABLES DURING DATA PREP ###########################
 
+# recodes a Qualtrics checkbox question (i.e., a single column with comma-separated options)
+#  into its consituent non-mutually-exclusive dummy variables
+recode_checkboxes = function( .d, 
+                              var ) {
+  
+  # split race into dummies
+  # https://stackoverflow.com/questions/27630588/split-string-column-to-create-new-binary-columns/27630769#27630769
+  t = mtabulate( strsplit( .d[[var]], ",") )
+  
+  # remove the old variable and replace with the new one
+  .d = .d %>% select(-var)
+  .d = cbind(.d, t)
+  
+  return(.d)
+}
+
 make_derived_vars = function(.d){
   
   # recode food variables

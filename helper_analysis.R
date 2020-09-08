@@ -68,8 +68,8 @@ my_ols_hc0 = function( coefName, dat, ols ){
   #  just transforming the final pooled estimate to an SMD, because SD(Y|X) differs 
   #  in each imputed dataset
   tab = suppressMessages( dat %>% group_by(treat) %>%
-                            summarise( m = mean(mainY),
-                                       sd = sd(mainY),
+                            summarise( m = mean(mainY, na.rm = TRUE),
+                                       sd = sd(mainY, na.rm = TRUE),
                                        n = n() ) )
   num = (tab$n[1] - 1) * tab$sd[1]^2 + (tab$n[2] - 1) * tab$sd[2]^2
   denom = (tab$n[1] - 1) + (tab$n[2] - 1)
@@ -200,11 +200,11 @@ mi_pool = function( ests, ses ){
 
 my_ivreg = function(dat){
   
-  iv = ivreg(mainY ~ finishedVid | treat, data = dat)
+  iv = ivreg(mainY ~ passCheck | treat, data = dat)
   
   est = coef(iv)["finishedVidTRUE"]
   summ = summary(iv, vcov = sandwich, diagnostics = TRUE)
-  se = sqrt( summ$vcov["finishedVidTRUE", "finishedVidTRUE"] )
+  se = sqrt( summ$vcov["passCheckTRUE", "passCheckTRUE"] )
   t = abs(est)/se
   tcrit = qt(.975, df = iv$df.residual)
   

@@ -1,16 +1,9 @@
-# # check for people with problems or duplicated pIDs,
-# #  and add N accordingly
-# 
-# # ~~~~ TEMP ONLY: LOOK AT PROLIFIC COMPLETION TIMES
-# setwd("~/Desktop")
-# p = read.csv("prolific_export_5f45868db809f51a582c456b.csv")
-# t = p$time_taken[ p$status == "AWAITING REVIEW"]
-# summary(t/60)
-# median(t/60)
-# # ~~~~~~
-# 
-# # note: when creating the time-on-task variable, need to use page 3 time on and off task
-# #  from the TaskMaster Shiny parser, whose sum agrees with Qualtrics' own timer
+
+# note: when creating the time-on-task variable, need to use page 3 time on and off task
+# from the TaskMaster Shiny parser, whose sum agrees with Qualtrics' own timer
+
+# note: fake simulated data didn't have importance questions or pandemic question
+
 
 rm(list=ls())
 
@@ -33,6 +26,7 @@ overwrite.res = TRUE
 
 # should we impute from scratch or read in saved datasets?
 impute.from.scratch = TRUE
+# @INCREASE LATER
 M = 10
 
 
@@ -40,7 +34,7 @@ M = 10
 # for pilot or fake data
 # raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Pilot data"
 # prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Pilot data"
-# imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
+imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Raw"
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
@@ -54,17 +48,10 @@ code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/L
 setwd(code.dir)
 source("helper_prep.R")
 
-# read in wave 1 data
-# these data have already been run through TaskMaster's Shiny App to parse the on-task 
-#  time strings
-# and I already manually removed 2 extra header rows from Qualtrics
-setwd(raw.data.dir)
-# d = read.csv("raw_FAKE_data.csv")
-# w1 = read.csv( "wave1_P3.csv", header = TRUE )
-w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
-expect_equal( nrow(w1), 650 )
+# should we overwrite previous prepped versions of the data?
+overwrite.prepped.data = TRUE
 
-# lists of variables
+##### Lists of Variables #####
 demoVars = c( "sex",
               "age", 
               "educ",
@@ -79,24 +66,47 @@ demoVars = c( "sex",
               "SEAsian",
               "party",
               "pDem",
-              "state" )
+              "state",
+              "covid" )
+
+meats = c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
+animProds = c("dairy", "eggs")
+decoy = c("refined", "beverages")
+goodPlant = c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
+allFoods = c(meats, animProds, decoy, goodPlant)
+
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   PREP WAVE 1 (BASELINE) DATA
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
+##### Read in Wave 1 Data #####
+# these data have already been run through TaskMaster's Shiny App to parse the on-task 
+#  time strings
+# and I already manually removed 2 extra header rows from Qualtrics
+setwd(raw.data.dir)
+w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
+expect_equal( nrow(w1), 650 )
+# setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data")
+# w1 = read.csv("raw_FAKE_data.csv")
+
+
 ################################ RENAME AND RECODE VARIABLES ################################ 
 
 # rename variables
-w1 = w1 %>% rename( ID = PROLIFIC_PID,
-                    date = StartDate,
-                    totalQuestionnaireMin = Duration..in.seconds./60,
-                    finishedQuestionnaire = Finished,
-                    IPlat = LocationLatitude,
-                    IPlong = LocationLongitude,
+w1 = w1 %>% rename( w1.ID = PROLIFIC_PID,
+                    w1.date = StartDate,
+                    w1.totalQuestionnaireMin = Duration..in.seconds./60,
+                    w1.finishedQuestionnaire = Finished,
+                    w1.IPlat = LocationLatitude,
+                    w1.IPlong = LocationLongitude,
                     state = stateCounty_1,
                     county = stateCounty_2,
-                    videoContent = attention )
+                    videoContent = attention,
+                    w1.problemsBin = problemsBin,
+                    w1.problemsText = problemsText)
 
 # recode checkbox variables as non-mutually-exclusive dummies
 w1 = recode_checkboxes(.d = w1, var = "race")
@@ -146,8 +156,8 @@ expect_equal( nrow(w1), 650 )
 ################################ DROP AND REORGANIZE VARIABLES ################################ 
 
 w1 = w1 %>% select( # analysis variables
-                    ID,
-                    date,
+                    w1.ID,
+                    w1.date,
                     treat,
                     sex,
                     age, 
@@ -173,14 +183,14 @@ w1 = w1 %>% select( # analysis variables
                     videoContent,
                     
                     # non-analysis meta-data
-                    totalQuestionnaireMin,
-                    finishedQuestionnaire,
-                    IPlat,
-                    IPlong,
+                    w1.totalQuestionnaireMin,
+                    w1.finishedQuestionnaire,
+                    w1.IPlat,
+                    w1.IPlong,
                     onTaskMin,
                     offTaskMin,
-                    problemsBin,
-                    problemsText )
+                    w1.problemsBin,
+                    w1.problemsText )
 
 
 ################################ EXCLUDE SUBJECTS IF NEEDED ################################
@@ -188,29 +198,33 @@ w1 = w1 %>% select( # analysis variables
 # review subjects' stated problems to see if any are serious enough to exclude
 setwd(results.dir)
 setwd("Sanity checks after W1")
-write.csv( w1 %>% select(ID, problemsText) %>%
-             filter( problemsText != ""),
+write.csv( w1 %>% select(w1.ID, w1.problemsText) %>%
+             filter( w1.problemsText != ""),
            "w1_R1_problemsText_for_review.csv")
 # nothing requiring exclusion
 #  mostly just confusion from control subjects about why none of manipulation
 # check items matched the control video content
 
 # any repeated Prolific IDs?
-t = w1 %>% group_by(ID) %>%
+t = w1 %>% group_by(w1.ID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
 # **one person somehow did it twice: note this in manuscript
-dupID = w1$ID[ duplicated(w1$ID) ]
+# this is the only exclusion for wave 1
+dupID = w1$w1.ID[ duplicated(w1$w1.ID) ]
 
 # keep only this person's first submission
-w1 = w1 %>% filter( !duplicated(ID) )
+w1 = w1 %>% filter( !duplicated(w1.ID) )
 expect_equal( nrow(w1), 649 )
 
 
-################################ aSAVE PREPPED W1 DATA ################################ 
+################################ SAVE PREPPED W1 DATA ################################ 
 
-setwd(prepped.data.dir)
-write.csv(w1, "prepped_data_W1_R1.csv")
+if ( overwrite.prepped.data == TRUE ) {
+  setwd(prepped.data.dir)
+  write.csv(w1, "prepped_data_W1_R1.csv")
+}
+
 
 ################################ SANITY CHECKS ################################ 
 
@@ -272,34 +286,92 @@ ggsave("states_map_W1.pdf",
 
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                              PREP AND MERGE WAVE 2 (FOLLOW-UP) DATA
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
-############# 
-############# 
-############# REST WAS WRITTEN EARLIER USING SIMULATED DATA:
+##### Read in Wave 2 Data #####
+# I already manually removed 2 extra header rows from Qualtrics
+#setwd(raw.data.dir)
+# setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data")
+# w2 = read.csv("raw_simulated_wave2.csv", header = TRUE)
+setwd(raw.data.dir)
+w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+nrow(w2) / 649  # completion rate
 
 
+# rename wave 2 variables
+w2 = w2 %>% rename( w2.ID = PROLIFIC_PID,
+                    w2.date = StartDate,
+                    w2.totalQuestionnaireMin = Duration..in.seconds./60,
+                    w2.finishedQuestionnaire = Finished,
+                    w2.IPlat = LocationLatitude,
+                    w2.IPlong = LocationLongitude,
+                    w2.problemsBin = problemsBin,
+                    w2.problemsText = problemsText,
+                    importAnimals = animals_Important,
+                    importHealth = healthy_Important,
+                    importEnviro = enviro_Important)
 
 
-##### Lists of Variables #####
-meats = c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
-animProds = c("dairy", "eggs")
-decoy = c("refined", "beverages")
-goodPlant = c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
-allFoods = c(meats, animProds, decoy, goodPlant)
-
-foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
-              names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
+# more variable lists (created here because they use the actual dataset)
+foodVars = c( names(w2)[ grepl(pattern = "Freq", names(w2) ) ],
+              names(w2)[ grepl(pattern = "Ounces", names(w2) ) ] )
+expect_equal( 15*2, length(foodVars) )  # 15 food variables (in prereg) * 2 variables each
 
 secondaryY = c("spec",
                "dom",
-               "activ")
+               "activ",
+               "importHealth",
+               "importEnviro",
+               "importAnimals")
 
-fu.vars = c(foodVars,
-            names(d)[ grepl(pattern = "spec", x = names(d) ) ],
-            names(d)[ grepl(pattern = "dom", x = names(d) ) ],
-            names(d)[ grepl(pattern = "activ", x = names(d) ) ],
-            names(d)[ grepl(pattern = "guessPurpose", x = names(d) ) ] )
+# not in use?
+# fuVars = c(foodVars,
+#             names(w2)[ grepl(pattern = "spec", x = names(w2) ) ],
+#             names(w2)[ grepl(pattern = "dom", x = names(w2) ) ],
+#             names(w2)[ grepl(pattern = "activ", x = names(w2) ) ],
+#             names(w2)[ grepl(pattern = "guessPurpose", x = names(w2) ) ] )
+# covid, important
+
+
+
+################################ EXCLUDE SUBJECTS IF NEEDED ################################
+
+# review subjects' stated problems to see if any are serious enough to exclude
+setwd(results.dir)
+setwd("Sanity checks after W2")
+write.csv( w2 %>% select(w2.ID, w2.problemsText) %>%
+             filter( w2.problemsText != ""),
+           "w2_R2_problemsText_for_review.csv")
+
+
+# any repeated Prolific IDs?
+t = w2 %>% group_by(w2.ID) %>%
+  summarise(n())
+table( t$`n()` )  # responses per pID
+
+
+################################ MERGE WAVES ################################
+
+# read wave 1 in again
+setwd(prepped.data.dir)
+w1 = read.csv( "prepped_data_W1_R1.csv", header = TRUE)
+
+# merge waves
+d = merge( w1, w2, by.x = "w1.ID", by.y = "w2.ID", all.x = TRUE)
+expect_equal( nrow(d), 649 )
+
+# sanity check
+# were all wave 2 subjects also in wave 1?
+# should all be true
+expect_equal( all( w2$w2.ID %in% w1$w1.ID == TRUE ), TRUE )
+
+
+# table(is.na(w2$beef_Freq))
+# table(is.na(d$beef_Freq))
+
 
 
 ##### Recode Character Vars as Factors #####
@@ -307,6 +379,37 @@ fu.vars = c(foodVars,
 sum(sapply(d, is.character))  # check number of character vars
 d = d %>% mutate_if(sapply(d, is.character), as.factor)
 sum(sapply(d, is.character))  # check again; should be 0
+
+# drop variables that shouldn't be in imputation model
+d$ID = d$w1.ID  # have just one ID variable
+d = d %>% select( -c("X",
+                     "w1.IPlat",
+                     "w1.IPlong",
+                     "EndDate",
+                     "Progress",
+                     "RecordedDate",
+                     "ResponseId",
+                     "RecipientLastName",
+                     "RecipientFirstName",
+                     "RecipientEmail",
+                     "ExternalReference",
+                     "Status",
+                     "w2.IPlat",
+                     "w2.IPlong",
+                     "DistributionChannel",
+                     "UserLanguage",
+                     "IPAddress",
+                     "pID",
+                     "w1.problemsBin",
+                     "w1.problemsText",
+                     "w2.problemsBin",
+                     "w2.problemsText",
+                     "w1.finishedQuestionnaire",
+                     "w2.finishedQuestionnaire",
+                     "w1.ID") )
+
+# check the remaining variables
+names(d)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -322,14 +425,46 @@ sum(sapply(d, is.character))  # check again; should be 0
 # an actual mistake in data collection, though we may conduct secondary analyses excluding
 # outlying subjects.
 
-# also save the CC version of dataset for sensitivity analysis
-
-# impute raw data before making derived variables
-
 
 ##### Make Imputations #####
 
+# define variables that shouldn't be predictors in the imputation model
+#  because they're too fine-grained or otherwise don't make sense
+bad = c("w1.date",
+        "w1.totalQuestionnaireMin",
+        "w2.date",
+        "w2.totalQuestionnaireMin",
+        "state",  # too many levels
+        "county",  # too many levels
+        "stateCounty",
+        "onTaskMin",
+        "offTaskMin",
+        "videoContent",
+        "ID")
+names(d)[ !names(d) %in% bad ]
+
+# which variables should be imputed?
+# bm
+# confirm that these are the only ones requiring imputation
+toImpute = c( foodVars,
+              secondaryY,
+              psychY,
+              effect.mods )
+names(d)[ !names(d) %in% c(bad, toImpute) ]
+
 if ( impute.from.scratch == TRUE ) {
+  
+  
+  # bm
+  # try a different package
+  # https://cran.r-project.org/web/packages/mi/vignettes/mi_vignette.pdf
+  # http://www.stat.columbia.edu/~gelman/research/published/mipaper.pdf
+  library(mi)
+  mdf = missing_data.frame(d)
+  show(mdf)
+  mdf = change( mdf, y = c(""))
+  imputations <- mi(mdf, n.iter = 30, n.chains = 4, max.minutes = 20)
+  
   ##### Generate Imputations #####
   library(mice)
   ini = mice(d, m=1, maxit = 0 )
@@ -339,8 +474,14 @@ if ( impute.from.scratch == TRUE ) {
   # check default methods
   ini$method
   
+
   # make smart predictor matrix
   pred = quickpred(d)
+  
+  # don't use "bad" variables for imputation
+  # from mice docs: A value of 1 means that the column variable is used as a predictor for the target block (in the rows).
+  pred[,bad] = 0
+  
   
   imps = mice( d,
                m=M,
@@ -348,11 +489,12 @@ if ( impute.from.scratch == TRUE ) {
                #ridge = 1e-02,  # this can help with collinearity; not needed here
                method = "pmm")
   
+  # bm: still has logged events
   # any complaints?
   head(imps$loggedEvents)
   if ( !is.null(imps$loggedEvents) ) warning("Imputation trouble: Imputations have logged events!")
   
-  
+  # BM: WAITING FOR IMPUTATIONS TO FINISH
   # make sure there is no missing data in the imputations
   any.missing = apply( complete(imps,1), 2, function(x) any(is.na(x)) ) # should be FALSE
   if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
@@ -397,27 +539,25 @@ imps = lapply( list.files(),
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # recode CC dataset
+# bm
 d2 = make_derived_vars(d)
-CreateTableOne(data=d2,
-               includeNA = TRUE) # second argument only works for categoricals
 
 
 ##### Recode the Imputations #####
-# read in each relevant imputed dataset as csv and saved a prepped version
-# currently this loop is not actually making any changes
+# read in each imputed dataset as csv and saved a prepped version
 for ( i in 1:M ) {
   imp = as.data.frame( imps[[i]] )
   
   imp = make_derived_vars(imp)
   
-  # overwrite the old one
+  # overwrite the old one (prior to making derived variables)
   write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
 }
 
-# look at the last imputation
-CreateTableOne(data=imp,
-               includeNA = TRUE)  # second argument only works for categoricals
-
+# # look at the last imputation
+# CreateTableOne(data=imp,
+#                includeNA = TRUE)  # second argument only works for categoricals
+# 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                    PRETTIFY VARIABLES
@@ -432,5 +572,5 @@ d2$treat.pretty[ d2$treat == 1 ] = "Documentary"
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 setwd(prepped.data.dir)
-write.csv(d2, "prepped_FAKE_data.csv")
+write.csv(d2, "prepped_merged_data.csv")
 

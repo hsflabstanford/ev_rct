@@ -16,7 +16,21 @@ recode_checkboxes = function( .d,
   return(.d)
 }
 
-make_derived_vars = function(.d){
+
+make_derived_vars = function(.d,
+                             # variable lists
+                             .meats = meats,
+                             .animProds = animProds,
+                             .goodPlant = goodPlant,
+                             
+                             printCorMat = TRUE  # print subscale correlation matrices for psych vars?
+                             ){
+  
+  # # test only
+  # .d = d
+  # .meats = meats
+  # .animProds = animProds
+  # .goodPlant = goodPlant
   
   # recode food variables
   for ( i in allFoods){
@@ -24,52 +38,75 @@ make_derived_vars = function(.d){
                        food = i)
   }
   
+  #browser()
   # secondary outcome: total meat (total ounces over the week)
-  .d$totalMeat = rowSums( .d[, meats])
+  .d$totalMeat = rowSums( .d[, .meats])
+  
+  # sanity check
+  # express in pounds of meat
+  hist(.d$totalMeat/16)
   
   # secondary outcome: total animal products (total ounces over the week)
-  .d$totalAnimProd = rowSums( .d[, animProds])
+  .d$totalAnimProd = rowSums( .d[, .animProds])
   
   # primary outcome: total meat + animal product consumption
   .d$mainY = .d$totalMeat + .d$totalAnimProd
-  # binary version for measurement error sensitivity analysis
-  .d$mainYLow = .d$mainY < median( .d$mainY[.d$treat == 0], na.rm = TRUE )
+  # # binary version for measurement error sensitivity analysis
+  # .d$mainYLow = .d$mainY < median( .d$mainY[.d$treat == 0], na.rm = TRUE )
   # frequency-only version for sensitivity analysis
-  vars = c("chickenFreq",
-           "turkeyFreq",
-           "fishFreq",
-           "porkFreq",
-           "beefFreq",
-           "otherMeatFreq",
-           "dairyFreq",
-           "eggsFreq")
+  vars = c("chicken_Freq",
+           "turkey_Freq",
+           "fish_Freq",
+           "pork_Freq",
+           "beef_Freq",
+           "otherMeat_Freq",
+           "dairy_Freq",
+           "eggs_Freq")
+  expect_equal(TRUE, all(vars %in% names(d)) )
   .d$mainYFreqOnly = rowSums( .d[,vars] ) 
   
   # secondary: total good plant-based foods
-  .d$totalGood = rowSums( .d[, goodPlant])
+  .d$totalGood = rowSums( .d[, .goodPlant])
+  
+  hist(.d$totalGood/16)
+  
+  # bm1
   
   # recode secondary psych scales
-  for ( i in secondaryY){
-    .d = recode_psych_scale(.d = .d,
-                            scale = i)
-  }
+  # @need to use lowercase because I changed Qualtrics
+  .d = recode_psych_scale( .d = .d,
+                           scale = "spec",
+                           revCode = "X5_spec")
+
+  .d = recode_psych_scale( .d = .d,
+                           scale = "activ",
+                           revCode = NA)
   
-  # recode compliance (finished watching video)
-  .d$finishedVid = (.d$video.time >= 20)
+  .d = recode_psych_scale( .d = .d,
+                           scale = "dom",
+                           revCode = c("X3_dom",
+                                       "X4_dom",
+                                       "X7_dom",
+                                       "X8_dom") )
+  
+  
+  # standardize the importance variables?
+  
+  
+
+  # # recode compliance (finished watching video)
+  # .d$finishedVid = (.d$video.time >= 20)
   
   # recode awareness
-  .d$aware = (.d$guessPurpose1 == "g.meatAnimProd") & (.d$guessPurpose2 == "c.decrease")
+  .d$aware = (.d$guessPurpose == "g.meatAnimProd") & (.d$guessPurpose2 == "c.decrease")
   
   
-  
-  ##### Dichotomize efect modifiers #####
-  # ~~~will need post-hoc editing
-  .d$female = NA; .d$female[ .d$sex == "a.Female" ] = 1; .d$female[ .d$sex == "b.Male" ] = 0
+  ##### Dichotomize effect modifiers #####
+  # @will need post-hoc editing
+  .d$female = NA; .d$female[ .d$sex == "a.Female" ] = 1; .d$female[ .d$sex == "b.Male" ] = 0  # NA for those marking "Other"
   .d$old = (.d$age > 25)
-  .d$democrat = NA; .d$democrat[ .d$party == "a.Democrat" ] = 1; .d$democrat[ .d$party == "b.Republican" ] = 0  # exclude independents
+  .d$democrat = NA; .d$democrat[ .d$party == "Democrat" ] = 1; .d$democrat[ .d$party == "Republican" ] = 0  # exclude independents  # excludes Independents and "don't knows"
   .d$collegeGrad = .d$educ %in% c("c.2yr", "d.4yr", "e.post")
-  # ~~~need to make one for ratio of liberals to conservatives in zip code
-  
 
   return(.d)
 }
@@ -79,63 +116,139 @@ make_derived_vars = function(.d){
 
 
 # yName: just the root of the string, e.g., "dairy"
+# NOTE: overwrites the frequency and amount variables in the returned dataset
 recode_food_Y = function(.d,
                          food){
   
-  freqString = paste(food, "Freq", sep = "")
-  amountString = paste(food, "Ounces", sep = "")
+  # # test only
+  # .d = d
+  # food = "legumes"
+  
+  freqString = paste(food, "Freq", sep = "_")
+  amountString = paste(food, "Ounces", sep = "_")
+  
+  # duplicate data just to facilitate sanity checks
+  .d2 = .d
   
   # overwrite old frequency variable
-  .d[ , freqString ] = dplyr::recode( .d[ , freqString ],
-                                      a.Never = 0,
-                                      b.1Weekly = 1,
-                                      c.2Weekly = 2,
-                                      d.3to4Weekly = 3.5,
-                                      e.5to6Weekly = 5.5,
-                                      f.1Daily = 7,
-                                      g.2PlusDaily = 14 ) 
+  # recode as servings per week
+  .d2[[freqString]] = dplyr::recode( .d2[ , freqString ],
+                                     a.Never = 0,
+                                     b.1Weekly = 1,
+                                     c.2Weekly = 2,
+                                     d.3to4Weekly = 3.5,
+                                     e.5to6Weekly = 5.5,
+                                     f.1Daily = 7,
+                                     g.2PlusDaily = 14 ) 
   
-  # overwrite old ounces variable
-  .d[ , amountString ] = dplyr::recode( .d[ , amountString ],
-                                        a.lessThan2 = 2,
-                                        b.2to5 = 3.5,
-                                        c.moreThan5 = 5 ) 
+  # # sanity check
+  table( .d2[[freqString]], .d[[freqString]], useNA = "ifany" )
   
+  # recode ounces variable
+  # when they answered "never" to frequency question, ounces question
+  #  was not asked, so will be NA
+  .d2[[ amountString ]] = as.numeric( as.character(.d2[[ amountString ]]) )
+  .d2[[ amountString ]][ .d2[[freqString]] == 0 ] = 0
+  
+  # # sanity check
+  # # when freqString is zero, amountString should always be 0
+  # # and when freqString is more than 0, amountString should be more than 0
+  # .d2 %>% group_by( get(freqString) == 0, get(amountString) ) %>%
+  #   summarise(n())
+  
+
   # make the ounces-per-week variable
-  .d[, food] = .d[ , freqString ] * .d[ , amountString ]
+  .d2[, food] = as.numeric( as.character(.d2[[freqString]]) ) * as.numeric( as.character(.d2[[amountString]]) )
   
-  return(.d)
+  return(.d2)
 }
 
-
-# turns likert into numeric
-
-
-# makes composite from the Likert psych scales
+# overwrites subscales with reverse-coded versions and creates a new standardized composite
+#  variable from the subscales' sum
+#
+# scale: part of scale string that appears in each subscale's variable name (e.g., "spec" for speciesism); also becomes the name of the new composite variable
+# revCode: quoted names of any subscales that need to be reverse-coded
+# @NOT TESTED YET
+# bm
 recode_psych_scale = function(.d,
-                              scale){
+                              scale, 
+                              revCode = NA,
+                              printCorMat = TRUE) {
+  # bm2
   
-  # # ~~ TEST ONLY
-  # scale = "spec"
+  # # test only
+  # .d = d
+  # scale = "dom"
+  # revCode = c("X3_dom",
+  #             "X4_dom",
+  #             "X7_dom",
+  #             "X8_dom")
+  # printCorMat = TRUE
   
-  subscales = names(.d)[ grepl( x = names(.d), pattern = scale ) ]
+  # duplicate dataset just for ease of sanity-checking
+  .d2 = .d
   
-  for( j in subscales ){
-    .d[ , j] = dplyr::recode( .d[ , j],
-                              `Strong Agree` = 3,
-                              Agree = 2,
-                              `Lean Agree` = 1,
-                              `Don't Know / Neutral` = 0,
-                              `Lean Disagree` = -1,
-                              Disagree = -2,
-                              `Strongly Disagree` = -3 )
+  subscales = names(.d2)[ grepl( x = names(.d2), pattern = scale ) ]
+  
+  # make numeric instead of factor
+  .d2 = .d2 %>% mutate_at( subscales, function(x) as.numeric( as.character(x) ) )
+
+  # sanity check
+  # correlation matrix prior to reverse-coding
+  if (printCorMat == TRUE){
+    library(corrr)
+    corrs = .d2 %>% select(subscales) %>%
+      correlate( use = "pairwise.complete.obs" )
+    
+    print( paste( "Reverse-coded: ", paste(revCode, collapse = ", "), sep = "" ) )
+    print(corrs)
   }
   
-  # composite is mean of the subscales
-  .d[, scale] = rowMeans( .d[ , subscales] )
+  # just use negative values for any scales that need reverse-coding
+  if ( !any( is.na(revCode) ) ) .d2[ , revCode] = -.d2[ , revCode]
   
-  return(.d)
+  head( .d2 %>% select(subscales) )
+  
+  # make new variable whose name is just the root
+  # new variable is mean by subject of the subscales
+  .d2[, scale ] = rowMeans( .d2[ , subscales] )
+  
+  hist( .d2[, scale ]  )
+  
+  # standardize the new variable
+  .d2[, scale ] = ( .d2[, scale ] - mean( .d2[, scale ], na.rm = TRUE ) ) / sd( .d2[, scale ], na.rm = TRUE )
+  
+  return(.d2)
 }
+
+
+# # makes composite from the Likert psych scales
+# recode_psych_scale = function(.d,
+#                               scale){
+#   
+#   # # ~~ TEST ONLY
+#   # scale = "spec"
+#   
+#   stop("Edit recode_psych_scale to handle reverse-coding")
+#   
+#   subscales = names(.d)[ grepl( x = names(.d), pattern = scale ) ]
+#   
+#   for( j in subscales ){
+#     .d[ , j] = dplyr::recode( .d[ , j],
+#                               `Strong Agree` = 3,
+#                               Agree = 2,
+#                               `Lean Agree` = 1,
+#                               `Don't Know / Neutral` = 0,
+#                               `Lean Disagree` = -1,
+#                               Disagree = -2,
+#                               `Strongly Disagree` = -3 )
+#   }
+#   
+#   # composite is mean of the subscales
+#   .d[, scale] = rowMeans( .d[ , subscales] )
+#   
+#   return(.d)
+# }
 
 # FROM OWP: 
 # # standardize a variable

@@ -18,11 +18,11 @@ library(AER)
 library(harmonicmeanp)
 
 ##### Working Directories #####
-raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
+# raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
+# imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
-results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Results from R (fake)"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
 overleaf.dir = "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
 
 setwd(code.dir)
@@ -39,7 +39,8 @@ if ( overwrite.res == TRUE & exists("res.overleaf") ) rm(res.raw)
 
 ##### Dataset #####
 setwd(prepped.data.dir)
-d = read.csv("prepped_FAKE_data.csv")
+d = read.csv("prepped_merged_data.csv")
+table(is.na(d$beef))
 
 # complete cases wrt mainY
 # might still have sporadic missing data elsewhere
@@ -70,7 +71,10 @@ foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
 # exploratory psych variables
 psychY = c("spec",
            "dom",
-           "activ")
+           "activ",
+           "importHealth",
+           "importEnviro",
+           "importAnimals")
 
 # secondary food outcomes
 secFoodY = c("totalMeat",
@@ -79,9 +83,10 @@ secFoodY = c("totalMeat",
              animProds,
              "totalGood")
 
+# @ do we need to add covid to this?
 fu.vars = c(foodVars, psychY, "aware" )
 
-# raw demographics, prior to collapsing catsegories for effect modification analyses
+# raw demographics, prior to collapsing categories for effect modification analyses
 demo.raw = c("sex",
              "age",
              "educ",
@@ -104,6 +109,109 @@ effect.mods = c("female",
                 "democrat",
                 "pDem")
 
+
+
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                 QUICK AND DIRTY
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+# for each thing in the Table 2:
+#  - confidence interval
+#  - also include the medians
+#  - save a density plot of the responses in each group
+#  - pattern it off the res.raw thing below
+
+
+
+
+##### Quick Analyses #####
+# @ quick look at treatment effect!!!!!!
+hist(d$mainY)
+t.test( d$mainY ~ d$treat, na.rm = TRUE  )
+
+# remove outliers
+wilcox.test(d$mainY ~ d$treat, na.rm = TRUE) 
+
+# table one
+CreateTableOne( vars = c(demo.raw, "aware", "passCheck"), strata = "treat", data = d )
+
+# main and secondaries t-tests
+CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )
+
+
+##### All Outcomes #####
+
+# bm
+rm(res.raw)
+for ( i in c("mainY", secFoodY, psychY) ){
+  
+  test = t.test( d[[i]] ~ d$treat, na.rm = TRUE  )
+  
+  m0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE )
+  m1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE )
+  
+  # Hedges' g
+  # recode to be more intuitive
+  library(effsize)
+  es = cohen.d( d[[i]] ~ (d$treat==0), hedges.correction = TRUE )
+  
+  new.row = data.frame( outcome = i,
+                        mn0 = m0,
+                        mn1 = m1,
+                        med0 = median( d[[i]][ d$treat == 0], na.rm = TRUE ),
+                        med1 = median( d[[i]][ d$treat == 1], na.rm = TRUE ),
+                        mn.diff = m1-m0,
+                        lo = test$conf.int[1],
+                        hi = test$conf.int[2],
+                        pval = test$p.value,
+                        g = es$estimate,
+                        g.lo = es$conf.int[1],
+                        g.hi = es$conf.int[2] )
+  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+}
+
+# round it
+res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "outcome"], function(x) round(x,2) )
+
+setwd(prepped.data.dir)
+write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
+
+
+##### Effect Modification #####
+
+string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+ols = lm( eval( parse( text = string ) ), data = d )
+
+
+coefNames = c("treat:female",
+              "treat:oldTRUE",
+              "treat:collegeGradTRUE",
+              "treat:cauc",
+              "treat:democrat",
+              "treat:pDem")
+
+rm(res.raw)
+for ( i in coefNames ){
+  new.row = my_ols_hc0(coefName = i, dat = d, ols = ols)
+  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+}
+
+# add effect modifier name
+res.raw = res.raw %>% add_column( eff.mod = row.names(res.raw),
+                                  .before = 1 ) 
+
+# round it
+# negative coefficients mean intervention worked better at reducing mainY
+res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "eff.mod"], function(x) round(x,2) )
+
+setwd(prepped.data.dir)
+write.csv(res.raw, "mainY_effect_modifiers.csv")
+
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 DESCRIPTIVE & TABLE 1
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -123,8 +231,31 @@ if( overwrite.res == TRUE ){
   write.csv(t1, "table1.csv")
 }
 
+##### One-Off Stats for Paper #####
+# COVID influence on food choices (given at wave 2)
+# @not done
+table(d$covid)
+update_result_csv( name = "Perc COVID less choice",
+                   section = 0,
+                   value = round( 100 * mean(d$covid %in% c("a.muchLess",
+                                                            "b.somewhatLess",
+                                                            "c.slightlyLess"), na.rm = TRUE), 2 ),
+                   print = TRUE )
 
-##### Descriptive Look at Treatment Group Differences #####
+update_result_csv( name = "Perc COVID more choice",
+                   section = 0,
+                   value = round( 100 * mean(d$covid %in% c("e.slightlyMore",
+                                                            "f.somewhatMore",
+                                                            "g.muchMore") ), 2 ),
+                   print = TRUE )
+
+update_result_csv( name = "Perc COVID no change",
+                   section = 0,
+                   value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 2 ),
+                   print = TRUE )
+
+
+##### Descriptive Look at Complete-Case Treatment Group Differences #####
 
 # examine skewed outcome (immaterial given sample size)
 hist(dcc$mainY)
@@ -137,28 +268,31 @@ ggplot( data = dcc,
   theme_bw()
 
 
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                    TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# By default, we will conduct a 2-sample t-test of total consumption by treatment group,
-# reporting the mean difference, a 95% confidence interval, and a p-value treated as a continuous
-# measure. We expect that errors may be heteroskedastic given the potentially skewed outcome;
-# if this appears to be the case based on the residuals, we will instead use a comparable
-# generalized least-squares model with heteroskedasticity-consistent robust standard errors.
-# We will not transform the outcome nor otherwise account for non-normal residuals given the
-# large sample size (Stapleton, 2009).
+# Primary analyses: We will conduct a 2-sample Welch’s t-test of total consumption by treatment group, reporting
+# the mean difference, a 95% confidence interval, and a p-value treated as a continuous measure.
+# We expect that errors may be highly skewed and heteroskedastic. The Welch’s t-test
+# accommodates this heteroskedasticity and and is robust to error skewness by the Central
+# Limit Theorem (Fagerland, 2012; Stapleton, 2009). We will therefore not transform the
+# outcome to reduce skewness.
 
-# We will conduct a counterpart to the primary analysis for each
+# Secondary outcomes: We will conduct a counterpart to the primary analysis for each
 # secondary outcome, comprising the secondary consumption outcomes as well as the exploratory
-# psychological outcomes. 
+# psychological outcomes. We will report inference for all secondary outcomes both with and
+# without Bonferroni correction, counting one test per secondary outcome. As outcome-wide
+# measures of the intervention’s effect on the secondary outcomes, we will report: (i) the
+# harmonic mean p-values (Wilson, 2019) for all secondary food outcomes considered together,
+# for all secondary food outcomes considered together, and for all exploratory psychological
+# outcomes considered together; and (ii) the number of secondary outcomes with a Bonferronicorrected
+# p < 0:05. The latter can be interpreted with 95% confidence as the number of
+# secondary outcomes on which the intervention has an effect (VanderWeele & Mathur, 2019).
 
-# We will report inference for all secondary outcomes both with and
-# without Bonferroni correction, counting one test per secondary outcome. As an outcome-wide
-# measure of the intervention’s effect on the secondary outcomes, we will report the number
-# of secondary outcomes with a Bonferroni-corrected p < 0.05. This can be interpreted with
-# 95% confidence as the number of secondary outcomes on which the intervention has an effect
-# (VanderWeele & Mathur, 2019).
+
 
 # # to pass fn as argument:
 # fake = 'my_ttest(yName = "mainY", dat = .d)'
@@ -274,15 +408,25 @@ update_result_csv( name = "HMP psych secY",
 #                               TABLE 3: EFFECT MODIFIERS
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# We will fit a single ordinary least squares (OLS) model with two-way
-# interactions of the intervention effect with each of the following variables from the baseline
-# demographic data: sex, race/ethnicity, individual political affiliation, education level, and
-# the ratio of self-identified liberals vs. conservatives in the subject’s zip code (e.g., Gallup
-# (2019)).
-# We will collapse all non-binary variables into binary variables for this analysis (e.g.,
-# for education, greater than vs. less than college), with the categories determined by the
-# distribution of responses. We will again report inference both with and without Bonferroni
-# correction, counting one test per effect modifier regression coefficient.
+# Effect modifiers: We will examine two-way interactions of intervention group assignment
+# with each of the following variables from the baseline demographic data: sex, age, race/ethnicity,
+# individual political affiliation, education level, and the political liberalism vs. conservatism
+# of the participant’s current county of residence. We will use the primary consumption outcome
+# for this analysis. For the latter, we will use an existing database (MIT Election Data and
+# Science Lab, 2018) to calculate the proportion of voters in the participant’s county who voted
+# for the Democratic presidential candidate from among all voters who voted for either the
+# Democratic or the Republican candidate. To do so, we will include these candidate effect
+# modifiers simultaneously in a generalized least-squares model with heteroskedasticity-consistent
+# robust standard errors, which is similar to the Welch’s t-test for the multivariable
+# case. We anticipate that some effect modifiers may have very few observations in some
+# categories (e.g., race/ethnicity). As needed, we may collapse variables into fewer categories
+# for these analyses (e.g., Causasian vs. non-Caucasian), with the categories determined by
+# the distribution of responses, and/or exclude categories with relatively few responses (e.g.,
+# political Independents). We will report the point estimates for each two-way interaction,
+# again reporting inference both with and without Bonferroni correction (counting one test per
+# effect modifier regression coefficient). We will also report the combination of effect modifiers
+# that was associated with the largest effect size, representing the participant demographic to
+# which the intervention might best be targeted.
 
 
 ##### Sanity Check #####
@@ -334,6 +478,8 @@ for ( i in coefNames ) {
 
 res.raw
 
+# CC version
+
 
 ##### One-Off Stats for Paper #####
 update_result_csv( name = "Bonferroni alpha mods",
@@ -364,6 +510,8 @@ update_result_csv( name = "Number mods pass Bonf",
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 ############################### SOCIAL DESIRABILITY BIAS ################################ 
+
+# NO NEED TO DICHOTOMIZE
 
 # To assess the possible effects of social desirability bias, interpreted
 # as differential measurement error, we will conduct statistical sensitivity analyses that
@@ -482,22 +630,24 @@ update_result_csv( name = "mainY CC pval",
 
 ############################### EFFECTS OF INTERVENTION NONCOMPLIANCE ################################ 
 
-# To supplement the primary analyses conducted by intention to treat, we will account for possible
-# noncompliance with the intervention (i.e., not watching the entire documentary) by treating intervention
-# assignment as an instrumental variable for intervention receipt (Angrist et al., 1996). We will define
-# intervention receipt as whether the subject remained on the webpage containing the video for at least
-# 20 minutes, the duration of the video. This analysis estimates a local average treatment effect
-# (Angrist et al., 1996).
+# To supplement the primary analyses conducted
+# by intention to treat, we will account for possible noncompliance with the intervention by
+# treating intervention assignment as an instrumental variable for passing the manipulation
+# check (Angrist et al., 1996). This analysis estimates a local average treatment effect (Angrist
+# et al., 1996) under the exclusion restriction assumption. Because this assumption may
+# be violated for manipulation-check items, we may instead conduct a similar instrumental
+# variables analysis using methods that relax the exclusion restriction (Flores & Flores-Lagunes,
+# 2013) if relevant methodological extensions, currently underway, are ready at the time of
+# analysis.
 
 ##### Look at CC Data #####
 # look at relationship between instrument (treat) and X (video duration)
 # in CC data
 dcc %>% group_by(treat) %>%
-  summarise( mean(video.time, na.rm = TRUE ),
-             sum( finishedVid, na.rm = TRUE) )
-table(dcc$treat, dcc$finishedVid)
+  summarise( sum( passCheck, na.rm = TRUE) )
+table(dcc$treat, dcc$passCheck)
 # first-stage model (linear probability model; ignore the inference):
-summary( lm( finishedVid ~ treat, data = dcc) )
+summary( lm( passCheck ~ treat, data = dcc) )
 
 ##### IV for MI Datasets #####
 mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
@@ -511,9 +661,9 @@ mi.res$stage1.pval
 # sanity check
 # confirm the fact that the first-stage model has the same p-value for every imputation
 # first-stage model (linear probability model; ignore the inference):
-summary( lm( finishedVid ~ treat, data = imps[[3]]) )
+summary( lm( passCheck ~ treat, data = imps[[3]]) )
 # this seems to be where where the weak instruments p-value is coming from
-summary( ivreg(mainY ~ finishedVid | treat, data = imps[[3]]), diagnostics = TRUE )
+summary( ivreg(mainY ~ passCheck | treat, data = imps[[3]]), diagnostics = TRUE )
 
 
 
@@ -533,4 +683,19 @@ update_result_csv( name = "mainY IV pval",
                    section = 0,
                    value = format_pval( pooled$pval, 2 ),
                    print = TRUE )
+
+
+############################### INTERVENTION EFFECT MAINTENANCE OVER TIME ################################
+
+# As noted above, subjects’ individual follow-up
+# times could potentially range from 10 days to 23 days (though the upper bound could
+# be less depending on how quickly subjects complete the questionnaires after we make them
+# available on Prolific). To estimate the extent to which the intervention effect is maintained
+# over time, we will use generalized least-squares, as above, to regress consumption on a main
+# effect of intervention group assignment and its interaction with the number of days elapsed
+# between a subject’s completion of the baseline wave and of the follow-up wave. If subjects’
+# follow-up times show very little variability (e.g., because they all complete the baseline and
+# follow-up questionnaires soon after we make them available), we may omit this analysis.
+
+
 

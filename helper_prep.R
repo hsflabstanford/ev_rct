@@ -62,7 +62,7 @@ make_derived_vars = function(.d,
            "otherMeat_Freq",
            "dairy_Freq",
            "eggs_Freq")
-  expect_equal(TRUE, all(vars %in% names(d)) )
+  expect_equal(TRUE, all(vars %in% names(.d)) )
   .d$mainYFreqOnly = rowSums( .d[,vars] ) 
   
   # secondary: total good plant-based foods

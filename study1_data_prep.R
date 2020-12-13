@@ -2,8 +2,6 @@
 # note: when creating the time-on-task variable, need to use page 3 time on and off task
 # from the TaskMaster Shiny parser, whose sum agrees with Qualtrics' own timer
 
-# note: fake simulated data didn't have importance questions or pandemic question
-
 
 rm(list=ls())
 

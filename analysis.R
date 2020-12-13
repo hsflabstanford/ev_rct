@@ -1,7 +1,4 @@
 
-# delte: 
-power.t.test(n=300/2, power=0.95)
-# mean pay rate
 
 rm(list=ls())
 

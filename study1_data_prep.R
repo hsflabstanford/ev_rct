@@ -480,16 +480,6 @@ impModelVars = w1Vars[ !w1Vars == "state" ]
 
 if ( impute.from.scratch == TRUE ) {
   
-  # # bm
-  # # try a different package
-  # # https://cran.r-project.org/web/packages/mi/vignettes/mi_vignette.pdf
-  # # http://www.stat.columbia.edu/~gelman/research/published/mipaper.pdf
-  # library(mi)
-  # mdf = missing_data.frame(d)
-  # show(mdf)
-  # mdf = change( mdf, y = c(""))
-  # imputations <- mi(mdf, n.iter = 30, n.chains = 4, max.minutes = 20)
-  
   ##### Generate Imputations #####
   library(mice)
   ini = mice(d, m=1, maxit = 0 )
@@ -497,70 +487,37 @@ if ( impute.from.scratch == TRUE ) {
   if ( !is.null(ini$loggedEvents) ) warning("Imputation trouble: Dry run has logged events!")
   
   # check default methods
+  # all PMM, as desired
   ini$method
   
-
-  # # make smart predictor matrix
-  # pred = quickpred(d)
-  # 
-  # # look at how many variables are being used to predict each var in dataset
-  # colSums(pred)
-  # 
-  # don't use "bad" variables for imputation
-  # from mice docs: A value of 1 means that the column variable is used as a predictor for the target block (in the rows).
-  #pred[,bad] = 0
-  
-  # # ATTEMPT 1 to make own predictor matrix
-  # # bm
-  # # "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
-  # myPred = matrix( 0,
-  #                nrow = length(names(d)),
-  #                ncol = length(names(d)) )
-  # 
-  # myPred[ names(d) %in% w2Vars, names(d) %in% c(w1Vars, w2Vars) ] = 1
-  # 
-  # rowSums(myPred)
-  # names(d)[ rowSums(myPred) > 0 ]  # which ones are going to be imputed?
-  # # ? doesn't seem to impute at all when I do that
-  
-  # ATTEMPT 2:
-  # modify mice's own predictor matrix to keep structure the same
+  # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
+  #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred
   myPred[myPred == 1] = 0
   myPred[ names(d) %in% w2Vars, names(d) %in% c(impModelVars, w2Vars) ] = 1
   
   imps = mice( d,
-               m=M,  # @TEMP ONLY
+               m=M,  
                predictorMatrix = myPred,
                seed = 451,
-               #ridge = 1e-02,  # this can help with collinearity; not needed here
                method = "pmm")
   
   # diagnostics
   # https://stefvanbuuren.name/fimd/sec-diagnostics.html
   # red: imputations, blue: observed
   # X-axis: imputation number (0 = observed dataset)
-  stripplot(imps)  
-  densityplot(imps, col=4)
-
-  #bm
+  densityplot(imps)
+  # manually saved this as "imputation_density_plot"
   
-  # bm: still has logged events
   # any complaints?
   unique(imps$loggedEvents)
   if ( !is.null(imps$loggedEvents) ) warning("Imputation trouble: Imputations have logged events!")
-  
+  # all are about using ridge penalty for collinearity
+  # not too worrisome
 
   # make sure there is no missing data in the imputations
   any.missing = apply( complete(imps,1), 2, function(x) any(is.na(x)) ) # should be FALSE
   if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
-  
-  # first imputed dataset
-  imp1 = complete(imps, 1)
-  head( imp1 )
-  table(is.na(imp1$beef_Freq))
-  # if this line returns an error about complete() not being applicable
-  #  for a mids objects (which is a lie), restart R
   
   ##### Save Imputations for Reproducibility #####
   if ( overwrite.res == TRUE ) {

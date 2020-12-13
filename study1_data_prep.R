@@ -298,6 +298,7 @@ ggsave("states_map_W1.pdf",
 # w2 = read.csv("raw_simulated_wave2.csv", header = TRUE)
 setwd(raw.data.dir)
 w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+nrow(w2)  # number of completers
 nrow(w2) / 649  # completion rate
 
 
@@ -351,6 +352,14 @@ write.csv( w2 %>% select(w2.ID, w2.problemsText) %>%
 t = w2 %>% group_by(w2.ID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
+
+# again, 2 subjects managed to do it twice
+# **exclude them (mention in paper)
+dupID = w2$w2.ID[ duplicated(w2$w2.ID) ]
+  
+# keep only this person's first submission
+w2 = w2 %>% filter( !duplicated(w2.ID) )
+expect_equal( nrow(w2), 575 )
 
 
 ################################ MERGE WAVES ################################

@@ -1,4 +1,8 @@
 
+# delte: 
+power.t.test(n=300/2, power=0.95)
+# mean pay rate
+
 rm(list=ls())
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -132,11 +136,15 @@ effect.mods = c("female",
 hist(d$mainY)
 t.test( d$mainY ~ d$treat, na.rm = TRUE  )
 
-# remove outliers
-wilcox.test(d$mainY ~ d$treat, na.rm = TRUE) 
+# table one - wave 1
+CreateTableOne( vars = c(demo.raw), strata = "treat", data = d )
 
-# table one
-CreateTableOne( vars = c(demo.raw, "aware", "passCheck"), strata = "treat", data = d )
+# differential attrition by treatment group and demographics
+string = paste( "is.na(d$mainY) ~ ", paste( "treat +", effect.mods, collapse=" + "), sep = "" )
+missMod = glm( eval( parse( text = string ) ), family = binomial(link="log"), data = d )
+summary(missMod)
+# completers
+CreateTableOne( vars = c(demo.raw, "passCheck", "aware"), strata = "treat", data = d %>% filter( !is.na(mainY)))
 
 # main and secondaries t-tests
 CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )

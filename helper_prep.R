@@ -1,3 +1,50 @@
+################################ MISCELLANEOUS FORMATTING AND CONVENIENCE FNS ################################
+
+# read/write intermediate work
+write_interm = function(x, filename){
+  setwd(prepped.data.dir)
+  setwd("Intermediate work")
+  write.csv(x, filename)
+}
+
+read_interm = function(filename){
+  setwd(prepped.data.dir)
+  setwd("Intermediate work")
+  read.csv(filename)
+}
+
+# like View(), but opens the extra tab if global var useView = TRUE
+View2 = function(x){
+  if ( useView == TRUE ) View(x) 
+}
+
+# quick length(unique) equivalent
+uni = function(x){
+  length(unique(x))
+}
+
+# quick mean with NAs removed
+meanNA = function(x){
+  mean(x, na.rm = TRUE)
+}
+
+# return strings containing anything in pattern vector
+stringsWith = function(pattern, x){
+  # make regex expression 
+  patterns = paste(pattern, collapse="|")
+  x[ grepl(pattern = patterns, x = x)]
+}
+# stringsWith( pattern = c("dog", "cat"),
+#  x = c("dogcat", "horse", "cat", "lion") )
+
+
+# return indices of strings containing anything in pattern vector
+whichStrings = function(pattern, x){
+  patterns = paste(pattern, collapse="|")
+  grepl(pattern = pattern, x = x)
+}
+
+
 ########################### FN: RECODE VARIABLES DURING DATA PREP ###########################
 
 # recodes a Qualtrics checkbox question (i.e., a single column with comma-separated options)
@@ -73,7 +120,6 @@ make_derived_vars = function(.d,
   # bm1
   
   # recode secondary psych scales
-  # @need to use lowercase because I changed Qualtrics
   .d = recode_psych_scale( .d = .d,
                            scale = "spec",
                            revCode = "X5_spec")
@@ -88,9 +134,6 @@ make_derived_vars = function(.d,
                                        "X4_dom",
                                        "X7_dom",
                                        "X8_dom") )
-  
-  
-  # standardize the importance variables?
 
   # # recode compliance (finished watching video)
   # .d$finishedVid = (.d$video.time >= 20)
@@ -100,7 +143,6 @@ make_derived_vars = function(.d,
   
   
   ##### Dichotomize effect modifiers #####
-  # @will need post-hoc editing
   .d$female = NA; .d$female[ .d$sex == "a.Female" ] = 1; .d$female[ .d$sex == "b.Male" ] = 0  # NA for those marking "Other"
   .d$old = (.d$age > 25)
   .d$democrat = NA; .d$democrat[ .d$party == "Democrat" ] = 1; .d$democrat[ .d$party == "Republican" ] = 0  # exclude independents  # excludes Independents and "don't knows"

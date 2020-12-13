@@ -1,6 +1,35 @@
 
 ########################### FNs FOR STATISTICS ###########################
 
+##### Fn: Calculate Crude RR #####
+
+# gets the raw RR 
+# assumes outcome is called "intentionReduce"
+get_rr_unadj = function(condition,
+                        condition.var.name = "condition",
+                        control.name = "control",
+                        dat) {
+  
+  # remove other interventions in case the study was more than 2 arms
+  temp = droplevels( dat[ dat[[condition.var.name]] %in% c(condition, control.name), ] )
+  
+  tab = table( temp[[condition.var.name]], temp$intentionReduce )
+  
+  # state sample size
+  print( paste( "Analyzed N:", nrow(temp) ) )
+  
+  library(metafor)
+  es = escalc( measure = "RR",
+               ai = tab[condition, 2], # X=1, Y=1
+               bi = tab[condition, 1],  # X=1, Y=0
+               ci = tab[control.name, 2], # X=0, Y=1
+               di = tab[control.name, 1] ) # X=0, Y=0
+  
+  return(es)
+}
+
+
+
 ##### Fn: Nicely Organize Welch t-test Results #####
 my_ttest = function( yName, dat ){
   

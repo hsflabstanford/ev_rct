@@ -23,22 +23,21 @@ library(tableone)
 overwrite.res = TRUE
 
 # should we impute from scratch or read in saved datasets?
-impute.from.scratch = TRUE
+# from scratch takes about an hour
+impute.from.scratch = FALSE
 # @INCREASE LATER
 M = 10
 
 
 ##### Working Directories #####
-# for pilot or fake data
-# raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Pilot data"
-# prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Pilot data"
-imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
+imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
 
-raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Raw"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
+raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Raw/Study 1"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
 # this script will save some results of sanity checks
-results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
 
+# county political affiliation data
 county.prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
                                 
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
@@ -226,6 +225,10 @@ if ( overwrite.prepped.data == TRUE ) {
 
 ################################ SANITY CHECKS ################################ 
 
+# read back in
+setwd(prepped.data.dir)
+w1 = read.csv("prepped_data_W1_R1.csv")
+
 # quick look at demographics
 temp = w1 %>% select( c("treat", demoVars, "passCheck", "onTaskMin") )
 t = CreateTableOne(data = temp, strata = "treat")
@@ -291,9 +294,6 @@ ggsave("states_map_W1.pdf",
 
 ##### Read in Wave 2 Data #####
 # I already manually removed 2 extra header rows from Qualtrics
-#setwd(raw.data.dir)
-# setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data")
-# w2 = read.csv("raw_simulated_wave2.csv", header = TRUE)
 setwd(raw.data.dir)
 w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
 nrow(w2)  # number of completers
@@ -325,14 +325,6 @@ secondaryY = c("spec",
                "importHealth",
                "importEnviro",
                "importAnimals")
-
-# not in use?
-# fuVars = c(foodVars,
-#             names(w2)[ grepl(pattern = "spec", x = names(w2) ) ],
-#             names(w2)[ grepl(pattern = "dom", x = names(w2) ) ],
-#             names(w2)[ grepl(pattern = "activ", x = names(w2) ) ],
-#             names(w2)[ grepl(pattern = "guessPurpose", x = names(w2) ) ] )
-# covid, important
 
 
 
@@ -419,6 +411,9 @@ d = d %>% select( -c("X",
 names(d)
 
 
+# save intermediate dataset
+write_interm(d, "d_intermediate_1.csv")
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                    MULTIPLE IMPUTATION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -433,44 +428,67 @@ names(d)
 # outlying subjects.
 
 
+d = read_interm("d_intermediate_1.csv")
+
+
 ##### Make Imputations #####
 
-# define variables that shouldn't be predictors in the imputation model
-#  because they're too fine-grained or otherwise don't make sense
-bad = c("w1.date",
-        "w1.totalQuestionnaireMin",
-        "w2.date",
-        "w2.totalQuestionnaireMin",
-        "state",  # too many levels
-        "county",  # too many levels
-        "stateCounty",
-        "onTaskMin",
-        "offTaskMin",
-        "videoContent",
-        "ID")
-names(d)[ !names(d) %in% bad ]
+# # define variables that shouldn't be predictors in the imputation model
+# #  because they're too fine-grained or otherwise don't make sense
+# bad = c("w1.date",
+#         "w1.totalQuestionnaireMin",
+#         "w2.date",
+#         "w2.totalQuestionnaireMin",
+#         "state",  # too many levels
+#         "county",  # too many levels
+#         "stateCounty",
+#         "onTaskMin",
+#         "offTaskMin",
+#         "videoContent",
+#         "ID")
+# names(d)[ !names(d) %in% bad ]
+# 
+# # which variables should be imputed?
+# # bm
+# # confirm that these are the only ones requiring imputation
+# toImpute = c( foodVars,
+#               secondaryY,
+#               psychY,
+#               effect.mods )
+# names(d)[ !names(d) %in% c(bad, toImpute) ]
 
-# which variables should be imputed?
+
+# variables to be imputed: those measured at follow-up
+# these are the only vars that can have missing data
+w2Vars = c(foodVars,
+           names(w2)[ grepl(pattern = "spec", x = names(w2) ) ],
+           names(w2)[ grepl(pattern = "dom", x = names(w2) ) ],
+           names(w2)[ grepl(pattern = "activ", x = names(w2) ) ],
+           names(w2)[ grepl(pattern = "guessPurpose", x = names(w2) ) ],
+           names(w2)[ grepl(pattern = "import", x = names(w2) ) ],
+           "covid" )
+
+# variables to be used in imputation model:
+# "real" variables measured at baseline and the F/U variables
 # bm
-# confirm that these are the only ones requiring imputation
-toImpute = c( foodVars,
-              secondaryY,
-              psychY,
-              effect.mods )
-names(d)[ !names(d) %in% c(bad, toImpute) ]
+w1Vars = c( "treat",
+            demoVars )
+# state has too many categories to work well as predictor
+impModelVars = w1Vars[ !w1Vars == "state" ]
+
+
 
 if ( impute.from.scratch == TRUE ) {
   
-  
-  # bm
-  # try a different package
-  # https://cran.r-project.org/web/packages/mi/vignettes/mi_vignette.pdf
-  # http://www.stat.columbia.edu/~gelman/research/published/mipaper.pdf
-  library(mi)
-  mdf = missing_data.frame(d)
-  show(mdf)
-  mdf = change( mdf, y = c(""))
-  imputations <- mi(mdf, n.iter = 30, n.chains = 4, max.minutes = 20)
+  # # bm
+  # # try a different package
+  # # https://cran.r-project.org/web/packages/mi/vignettes/mi_vignette.pdf
+  # # http://www.stat.columbia.edu/~gelman/research/published/mipaper.pdf
+  # library(mi)
+  # mdf = missing_data.frame(d)
+  # show(mdf)
+  # mdf = change( mdf, y = c(""))
+  # imputations <- mi(mdf, n.iter = 30, n.chains = 4, max.minutes = 20)
   
   ##### Generate Imputations #####
   library(mice)
@@ -482,32 +500,65 @@ if ( impute.from.scratch == TRUE ) {
   ini$method
   
 
-  # make smart predictor matrix
-  pred = quickpred(d)
-  
+  # # make smart predictor matrix
+  # pred = quickpred(d)
+  # 
+  # # look at how many variables are being used to predict each var in dataset
+  # colSums(pred)
+  # 
   # don't use "bad" variables for imputation
   # from mice docs: A value of 1 means that the column variable is used as a predictor for the target block (in the rows).
-  pred[,bad] = 0
+  #pred[,bad] = 0
   
+  # # ATTEMPT 1 to make own predictor matrix
+  # # bm
+  # # "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
+  # myPred = matrix( 0,
+  #                nrow = length(names(d)),
+  #                ncol = length(names(d)) )
+  # 
+  # myPred[ names(d) %in% w2Vars, names(d) %in% c(w1Vars, w2Vars) ] = 1
+  # 
+  # rowSums(myPred)
+  # names(d)[ rowSums(myPred) > 0 ]  # which ones are going to be imputed?
+  # # ? doesn't seem to impute at all when I do that
+  
+  # ATTEMPT 2:
+  # modify mice's own predictor matrix to keep structure the same
+  myPred = ini$pred
+  myPred[myPred == 1] = 0
+  myPred[ names(d) %in% w2Vars, names(d) %in% c(impModelVars, w2Vars) ] = 1
   
   imps = mice( d,
-               m=M,
-               predictorMatrix = pred,
+               m=M,  # @TEMP ONLY
+               predictorMatrix = myPred,
+               seed = 451,
                #ridge = 1e-02,  # this can help with collinearity; not needed here
                method = "pmm")
   
+  # diagnostics
+  # https://stefvanbuuren.name/fimd/sec-diagnostics.html
+  # red: imputations, blue: observed
+  # X-axis: imputation number (0 = observed dataset)
+  stripplot(imps)  
+  densityplot(imps, col=4)
+
+  #bm
+  
   # bm: still has logged events
   # any complaints?
-  head(imps$loggedEvents)
+  unique(imps$loggedEvents)
   if ( !is.null(imps$loggedEvents) ) warning("Imputation trouble: Imputations have logged events!")
   
-  # BM: WAITING FOR IMPUTATIONS TO FINISH
+
   # make sure there is no missing data in the imputations
   any.missing = apply( complete(imps,1), 2, function(x) any(is.na(x)) ) # should be FALSE
   if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
   
   # first imputed dataset
-  head( complete(imps, 1) )
+  imp1 = complete(imps, 1)
+  head( imp1 )
+  table(is.na(imp1$beef_Freq))
   # if this line returns an error about complete() not being applicable
   #  for a mids objects (which is a lie), restart R
   
@@ -517,9 +568,6 @@ if ( impute.from.scratch == TRUE ) {
     # save imputations for reproducibility
     setwd(imputed.data.dir)
     save( imps, file = "imputed_datasets.RData" )
-    
-    # also save imputed datasets as csvs for Ying
-    setwd("Imputed datasets as csvs")
     
     for (i in 1:M) {
       write.csv( complete(imps,i),
@@ -545,8 +593,11 @@ imps = lapply( list.files(),
 #                                      MAKE DERIVED VARIABLES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
+
+d = read_interm("d_intermediate_1.csv")
+
+
 # recode CC dataset
-# bm
 d2 = make_derived_vars(d)
 
 

@@ -22,7 +22,7 @@ overwrite.res = TRUE
 
 ##### Working Directories ####
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Raw/Study 2"
-
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 2"
 
 # this script will save some results of sanity checks
 results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 2"
@@ -63,11 +63,6 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 
 
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                   PREP WAVE 1 (BASELINE) DATA
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
 # @@try again with taskmaster?
 # check if anyone spent too little time because of the qualtrics wrinkle
 
@@ -78,6 +73,7 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 setwd(raw.data.dir)
 d1 = read.csv("study2_R1_from_qualtrics_noheader.csv", header = TRUE)
 expect_equal( nrow(d1), 300 )
+
 
 
 ################################ RENAME AND RECODE VARIABLES ################################ 
@@ -140,6 +136,21 @@ expect_equal( min(d1$videoMinQualtrics) > 20, TRUE )
 d2 = make_derived_vars(d1)
 
 
+# make intention variables (not in make_derived_vars because it wasn't in Study 1)
+# continuous
+d2$intentionCont = dplyr::recode( d2$intention,
+                                  a.stronglyDecrease = -3,
+                                  b.decrease = -2,
+                                  c.somewhatDecrease = -1,
+                                  d.noChange = 0,
+                                  e.somewhatIncrease = 1,
+                                  f.increase = 2,
+                                  g.stronglyIncrease = 3 ) 
+table(d2$intentionCont)
+
+# binary
+d2$intentionReduce = d2$intentionCont < 0
+mean(d2$intentionReduce)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                    PRETTIFY VARIABLES
@@ -149,15 +160,16 @@ d2$treat.pretty = NA
 d2$treat.pretty[ d2$treat == 0 ] = "Control"
 d2$treat.pretty[ d2$treat == 1 ] = "Documentary"
 
+
 ################################ MERGE IN COUNTY POLITICS DATA ################################ 
 
 # merge in county-level politics data (already prepped by data_prep_counties.R)
 #  this just adds the variable pDem to the dataset
 setwd(county.prepped.data.dir)
 cn = read.csv("counties_prepped.csv")
-d1 = merge(d1, cn, by = "stateCounty")
+d2 = merge(d2, cn, by = "stateCounty")
 
-expect_equal( nrow(d1), 300 )
+expect_equal( nrow(d2), 300 )
 
 
 

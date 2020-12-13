@@ -18,13 +18,26 @@ library(metafor)
 library(AER)
 library(harmonicmeanp)
 
+# which study to analyze (1 or 2)?
+study = 1
+
 ##### Working Directories #####
-# raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
-# imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data/Saved fake imputations"
-code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
-results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+ 
 overleaf.dir = "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
+code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
+
+
+if ( study == 1 ) {
+  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
+  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+  imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
+}
+
+if (study == 2) {
+  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 2"
+  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 2"
+}
+
 
 setwd(code.dir)
 source("helper_analysis.R")
@@ -40,7 +53,8 @@ if ( overwrite.res == TRUE & exists("res.overleaf") ) rm(res.raw)
 
 ##### Dataset #####
 setwd(prepped.data.dir)
-d = read.csv("prepped_merged_data.csv")
+if (study == 1) d = read.csv("prepped_merged_data.csv")
+if (study == 2) d = read.csv("prepped_data.csv")
 table(is.na(d$beef))
 
 # complete cases wrt mainY
@@ -48,15 +62,25 @@ table(is.na(d$beef))
 dcc = d %>% filter( !is.na(mainY) )
 nrow(dcc)
 
-# read in imputations
-setwd(imputed.data.dir)
-# load("imputed_datasets.RData")  # load "imps", the mids object
 
-# if we need to pool manually
-setwd("Imputed datasets as csvs")
-to.read = list.files()[ grepl( pattern = "prepped", x = list.files() ) ]
-imps = lapply( to.read,
-               function(x) suppressMessages(read_csv(x)) )
+# read in imputations
+if ( study == 1 ) {
+  setwd(imputed.data.dir)
+  load("imputed_datasets.RData")  # load "imps", the mids object
+  
+  # read in the imputations as a list rather than a mids object so that we can pool manually
+  setwd(imputed.data.dir)
+  to.read = list.files()[ grepl( pattern = "prepped", x = list.files() ) ]
+  imps = lapply( to.read,
+                 function(x) suppressMessages(read_csv(x)) )
+}
+
+# @maybe unnecessary?
+# study 2 doesn't have imputations
+#  to enable running the same script, just put the complete-case dataset as the imputations
+if ( study == 2 ) {
+  imps = list(dcc)
+}
 
 
 ##### Lists of Variables #####
@@ -113,8 +137,6 @@ effect.mods = c("female",
 
 
 
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 QUICK AND DIRTY
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -129,9 +151,45 @@ effect.mods = c("female",
 
 
 ##### Quick Analyses #####
-# @ quick look at treatment effect!!!!!!
+# @ quick look at treatment effect!!!
 hist(d$mainY)
 t.test( d$mainY ~ d$treat, na.rm = TRUE  )
+# in study 2, no evidence of lying about past behavior
+
+# redundant with below
+# # and on intentions
+# if ( study == 2 ) {
+#   # big difference in intentions! 
+#   t.test(d$intentionCont ~ d$treat, na.rm = TRUE)
+#   # **Cohen's d: -0.64 [-0.88, -0.41]
+#   library(effsize)
+#   es = cohen.d( d$intentionCont ~ (d$treat==0), hedges.correction = TRUE )
+#   
+#   # binary version
+#   tab = table( d$treat.pretty, d$intentionReduce )
+# 
+#   library(metafor)
+#   es = escalc( measure = "RR",
+#                ai = tab["Documentary", 2], # X=1, Y=1
+#                bi = tab["Documentary", 1],  # X=1, Y=0
+#                ci = tab["Control", 2], # X=0, Y=1
+#                di = tab["Control", 1] ) # X=0, Y=0
+#   # this is the LOG-RR
+#   exp( es$yi - qnorm(.975) * sqrt(es$vi) )
+#   exp( es$yi + qnorm(.975) * sqrt(es$vi) )
+#   
+#   # another way
+#   mod = glm( intentionReduce ~ treat,
+#        data = d,
+#        family = binomial(link="log") )
+#   # **RR: 3.42 [2.49, 4.92]
+#   exp(mod$coefficients)
+#   exp(confint(mod))
+#   
+#   # wow...HUGE ES on intentions!
+#   
+# }
+
 
 # table one - wave 1
 CreateTableOne( vars = c(demo.raw), strata = "treat", data = d )
@@ -150,8 +208,11 @@ CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d 
 ##### All Outcomes #####
 
 # bm
+if ( study == 1 ) vars = c("mainY", secFoodY, psychY)
+if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
+
 rm(res.raw)
-for ( i in c("mainY", secFoodY, psychY) ){
+for ( i in vars ){
   
   test = t.test( d[[i]] ~ d$treat, na.rm = TRUE  )
   
@@ -174,16 +235,52 @@ for ( i in c("mainY", secFoodY, psychY) ){
                         pval = test$p.value,
                         g = es$estimate,
                         g.lo = es$conf.int[1],
-                        g.hi = es$conf.int[2] )
+                        g.hi = es$conf.int[2],
+                        pval2 = NA, # NA because will be redundant with previous p-value for continuous outcomes
+                        note = NA) 
   if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
 }
 
-# round it
-res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "outcome"], function(x) round(x,2) )
 
-setwd(prepped.data.dir)
+# for Study 2: handle binary intention variable differently
+if ( study == 2 ){
+  # get inference for risk difference
+  mod1 = lm( intentionReduce ~ treat,
+            data = d )
+  mod1Inf = coeftest(mod1, vcov = vcovHC(mod1, type = "HC0"))["treat",]
+  df = nrow(d) - 2
+  tcrit = qt(p = 0.975, df = df)
+  
+  # get estimate and inference for RR
+  mod2 = glm( intentionReduce ~ treat,
+             data = d,
+             family = binomial(link="log") )
+  mod2Inf = confint(mod2)
+
+  new.row = data.frame( outcome = "intentionReduce",
+                        mn0 = mean( d$intentionReduce[d$treat == 0] ),
+                        mn1 = mean( d$intentionReduce[d$treat == 1] ),
+                        med0 = NA,
+                        med1 = NA,
+                        mn.diff = m1-m0,
+                        lo = mod1Inf["Estimate"] - mod1Inf["Std. Error"] * tcrit,
+                        hi = mod1Inf["Estimate"] + mod1Inf["Std. Error"] * tcrit,
+                        pval = mod1Inf["Pr(>|t|)"],
+                        g = exp( mod2$coef["treat"] ),
+                        g.lo = exp( mod2Inf["treat", "2.5 %"] ),
+                        g.hi = exp( mod2Inf["treat", "97.5 %"] ),
+                        pval2 = summary(mod2)$coefficients["treat","Pr(>|z|)"],
+                        note = "Binary outcome, so pval is from robust SEs and g's are actually risk ratios" )
+  res.raw = rbind(res.raw, new.row)
+}
+
+# round it
+res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("outcome", "note" ) ], function(x) round(x,2) )
+
+setwd(results.dir)
 write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
 
+#bm
 
 ##### Effect Modification #####
 
@@ -238,26 +335,27 @@ if( overwrite.res == TRUE ){
 
 ##### One-Off Stats for Paper #####
 # COVID influence on food choices (given at wave 2)
-# @not done
-table(d$covid)
-update_result_csv( name = "Perc COVID less choice",
-                   section = 0,
-                   value = round( 100 * mean(d$covid %in% c("a.muchLess",
-                                                            "b.somewhatLess",
-                                                            "c.slightlyLess"), na.rm = TRUE), 2 ),
-                   print = TRUE )
-
-update_result_csv( name = "Perc COVID more choice",
-                   section = 0,
-                   value = round( 100 * mean(d$covid %in% c("e.slightlyMore",
-                                                            "f.somewhatMore",
-                                                            "g.muchMore") ), 2 ),
-                   print = TRUE )
-
-update_result_csv( name = "Perc COVID no change",
-                   section = 0,
-                   value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 2 ),
-                   print = TRUE )
+if ( study == 1 ){
+  table(d$covid)
+  update_result_csv( name = "Perc COVID less choice",
+                     section = 0,
+                     value = round( 100 * mean(d$covid %in% c("a.muchLess",
+                                                              "b.somewhatLess",
+                                                              "c.slightlyLess"), na.rm = TRUE), 2 ),
+                     print = TRUE )
+  
+  update_result_csv( name = "Perc COVID more choice",
+                     section = 0,
+                     value = round( 100 * mean(d$covid %in% c("e.slightlyMore",
+                                                              "f.somewhatMore",
+                                                              "g.muchMore") ), 2 ),
+                     print = TRUE )
+  
+  update_result_csv( name = "Perc COVID no change",
+                     section = 0,
+                     value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 2 ),
+                     print = TRUE )
+}
 
 
 ##### Descriptive Look at Complete-Case Treatment Group Differences #####
@@ -271,6 +369,20 @@ ggplot( data = dcc,
              y = mainY ) ) +
   geom_violin(draw_quantiles = c(.25, .5, .75)) + 
   theme_bw()
+
+# and for the intention outcome measures
+if ( study == 2 ){
+  # continuous intentions
+  ggplot( data = dcc, 
+          aes( x = treat.pretty,
+               y = intentionCont ) ) +
+    geom_violin(draw_quantiles = c(.25, .5, .75)) + 
+    theme_bw()
+  
+  # binary intentions
+  dcc %>% group_by(treat) %>%
+    summarise( mean(intentionReduce) )
+}
 
 
 
@@ -311,7 +423,12 @@ ggplot( data = dcc,
 n.secY = sum( length(secFoodY), length(psychY) )
 ( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
 
-for ( i in c("mainY", secFoodY, psychY ) ) {
+# variables to analyze
+toAnalyze = c("mainY", secFoodY, psychY )
+if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
+
+if ( exists("res.raw") ) rm(res.raw)
+for ( i in toAnalyze ) {
   mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
   mi.res = do.call(what = rbind, mi.res)
   

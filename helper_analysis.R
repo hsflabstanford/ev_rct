@@ -1,4 +1,22 @@
 
+
+
+# stands for "wipe results"
+wr = function(){
+  setwd(general.results.dir)
+  if( "stats_for_paper.csv" %in% list.files() ) system("rm stats_for_paper.csv")
+  setwd(overleaf.dir)
+  if( "stats_for_paper.csv" %in% list.files() ) system("rm stats_for_paper.csv")
+}
+
+# stands for "view results"
+vr = function(){
+  setwd(general.results.dir)
+  View( read.csv("stats_for_paper.csv") )
+}
+
+# make a f
+
 ########################### FNs FOR STATISTICS ###########################
 
 ##### Fn: Calculate Crude RR #####
@@ -39,8 +57,8 @@ my_ttest = function( yName, dat ){
   
   dat$Y = dat[[yName]]
   tab = suppressMessages( dat %>% group_by(treat) %>%
-                            summarise( m = mean(Y),
-                                       sd = sd(Y),
+                            summarise( m = mean(Y, na.rm = TRUE),
+                                       sd = sd(Y, na.rm = TRUE),
                                        n = n() ) )
   
   # standardized mean difference (Hedges' g)
@@ -286,19 +304,24 @@ format_pval = function( p,
 # vapply( p, format_pval, "asdf" )
 # vapply( p, function(x) format_pval( x, star.cutoffs = c( 0.01, 0.05) ), "asdf" )
 
+# make a string for estimate and CI
+stat_CI = function(est, lo, hi){
+  paste( est, " [", lo, ", ", hi, "]", sep = "" )
+}
+stat_CI( c(.5, -.1), c(.3, -.2), c(.7, .0) )
 
 # for reproducible manuscript-writing
 # adds a row to the file "stats_for_paper" with a new statistic or value for the manuscript
 # optionally, "section" describes the section of code producing a given result
 update_result_csv = function( name,
-                              section = NA,
+                              .section = section,
                               value = NA,
                               print = FALSE ) {
-  setwd(results.dir)
+  setwd(general.results.dir)
   
   new.rows = data.frame( name,
                          value = as.character(value),
-                         section = as.character(section) )
+                         section = as.character(.section) )
   
   # to avoid issues with variable types when overwriting
   new.rows$name = as.character(new.rows$name)
@@ -356,6 +379,7 @@ table1_add_row = function( x, # vector
   useNA = ifelse( countNA == TRUE, "ifany", "no" )
   
   if ( type == "cat" ) {
+    # this line will drop levels that have counts of 0, but it's surprisingly not easy to fix that
     t = table(x, useNA = useNA)
     pt = prop.table(t)
     

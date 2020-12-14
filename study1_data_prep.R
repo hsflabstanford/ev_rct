@@ -2,7 +2,6 @@
 # note: when creating the time-on-task variable, need to use page 3 time on and off task
 # from the TaskMaster Shiny parser, whose sum agrees with Qualtrics' own timer
 
-
 rm(list=ls())
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -25,7 +24,7 @@ overwrite.res = TRUE
 # should we impute from scratch or read in saved datasets?
 # from scratch takes about an hour
 impute.from.scratch = FALSE
-# @INCREASE LATER
+# number of imputations
 M = 10
 
 
@@ -74,7 +73,6 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 
 
 
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   PREP WAVE 1 (BASELINE) DATA
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -85,6 +83,11 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 # and I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
 w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
+
+# people who closed survey after starting
+table(w1$Finished)
+# all finished
+
 expect_equal( nrow(w1), 650 )
 # setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data")
 # w1 = read.csv("raw_FAKE_data.csv")
@@ -296,6 +299,11 @@ ggsave("states_map_W1.pdf",
 # I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
 w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+
+# a couple people started the survey, but then did not finish
+table(w2$Finished)
+w2 = w2[ w2$Finished == TRUE, ]
+
 nrow(w2)  # number of completers
 nrow(w2) / 649  # completion rate
 
@@ -342,14 +350,6 @@ write.csv( w2 %>% select(w2.ID, w2.problemsText) %>%
 t = w2 %>% group_by(w2.ID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
-
-# again, 2 subjects managed to do it twice
-# **exclude them (mention in paper)
-dupID = w2$w2.ID[ duplicated(w2$w2.ID) ]
-  
-# keep only this person's first submission
-w2 = w2 %>% filter( !duplicated(w2.ID) )
-expect_equal( nrow(w2), 575 )
 
 
 ################################ MERGE WAVES ################################
@@ -427,36 +427,19 @@ write_interm(d, "d_intermediate_1.csv")
 # an actual mistake in data collection, though we may conduct secondary analyses excluding
 # outlying subjects.
 
-
+# bm: redo imps here
 d = read_interm("d_intermediate_1.csv")
 
+# look at missingness patterns
+Pmiss = apply( d, 2, function(x) mean( is.na(x) ) )
+sort(Pmiss)
+# makes sense:
+#  - all baseline variables have 0 missingness
+#  - F/U variables usually have exactly 11.6% missingness because that's the attrition rate
+#  - except for the "ounces" variables, which are additionally missing for subjects who said they 
+#      never ate that particular food
 
 ##### Make Imputations #####
-
-# # define variables that shouldn't be predictors in the imputation model
-# #  because they're too fine-grained or otherwise don't make sense
-# bad = c("w1.date",
-#         "w1.totalQuestionnaireMin",
-#         "w2.date",
-#         "w2.totalQuestionnaireMin",
-#         "state",  # too many levels
-#         "county",  # too many levels
-#         "stateCounty",
-#         "onTaskMin",
-#         "offTaskMin",
-#         "videoContent",
-#         "ID")
-# names(d)[ !names(d) %in% bad ]
-# 
-# # which variables should be imputed?
-# # bm
-# # confirm that these are the only ones requiring imputation
-# toImpute = c( foodVars,
-#               secondaryY,
-#               psychY,
-#               effect.mods )
-# names(d)[ !names(d) %in% c(bad, toImpute) ]
-
 
 # variables to be imputed: those measured at follow-up
 # these are the only vars that can have missing data
@@ -470,7 +453,6 @@ w2Vars = c(foodVars,
 
 # variables to be used in imputation model:
 # "real" variables measured at baseline and the F/U variables
-# bm
 w1Vars = c( "treat",
             demoVars )
 # state has too many categories to work well as predictor
@@ -494,6 +476,7 @@ if ( impute.from.scratch == TRUE ) {
   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred
   myPred[myPred == 1] = 0
+  # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
   myPred[ names(d) %in% w2Vars, names(d) %in% c(impModelVars, w2Vars) ] = 1
   
   imps = mice( d,
@@ -502,12 +485,21 @@ if ( impute.from.scratch == TRUE ) {
                seed = 451,
                method = "pmm")
   
-  # diagnostics
+  # # useful if you want to jump back to this point by 
+  # #  reading in existing imputations as mids objects
+  # setwd(imputed.data.dir)
+  # load("imputed_datasets.RData")  # load "imps", the mids object
+  
+  # this is prone to crashing R:
+  # plot comparing density of imputed data to observed datas 
   # https://stefvanbuuren.name/fimd/sec-diagnostics.html
   # red: imputations, blue: observed
-  # X-axis: imputation number (0 = observed dataset)
+  setwd(results.dir)
+  pdf(file = "imputation_density_plot.pdf",
+      width = 15,
+      height = 10)
   densityplot(imps)
-  # manually saved this as "imputation_density_plot"
+  dev.off()
   
   # any complaints?
   unique(imps$loggedEvents)
@@ -539,9 +531,11 @@ if ( impute.from.scratch == TRUE ) {
 # we're doing this even if impute.from.scratch=TRUE to have same data format
 # i.e., a list of imputed datasets instead of a mids object
 setwd(imputed.data.dir)
-setwd("Imputed datasets as csvs")
 
-imps = lapply( list.files(),
+# avoid trying to recode other files in that directory
+toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
+
+imps = lapply( toRecode,
                function(x) suppressMessages(read_csv(x)) )
 
 
@@ -559,7 +553,8 @@ d2 = make_derived_vars(d)
 
 
 ##### Recode the Imputations #####
-# read in each imputed dataset as csv and saved a prepped version
+# saves a new version of the imputation dataset (does not overwrite the old one)
+
 for ( i in 1:M ) {
   imp = as.data.frame( imps[[i]] )
   
@@ -569,10 +564,6 @@ for ( i in 1:M ) {
   write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
 }
 
-# # look at the last imputation
-# CreateTableOne(data=imp,
-#                includeNA = TRUE)  # second argument only works for categoricals
-# 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                    PRETTIFY VARIABLES

@@ -203,7 +203,7 @@ recode_food_Y = function(.d,
   return(.d2)
 }
 
-# overwrites subscales with reverse-coded versions and creates a new standardized composite
+# overwrites subscales with reverse-coded versions and creates a new *standardized* composite
 #  variable from the subscales' sum
 #
 # scale: part of scale string that appears in each subscale's variable name (e.g., "spec" for speciesism); also becomes the name of the new composite variable

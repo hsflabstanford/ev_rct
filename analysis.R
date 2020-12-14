@@ -1,9 +1,12 @@
 
+# Ideas:
+#   - how much nondiff measurement error would be needed for true effect to be some non-null amount?
+
 
 rm(list=ls())
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                      PRELIMINARIES
+#                                      0. PRELIMINARIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 ##### Packages #####
@@ -24,12 +27,14 @@ study = 1
 ##### Working Directories #####
  
 overleaf.dir = "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
+# results dir not specific to this study (for saving results csv)
+general.results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
 
 
 if ( study == 1 ) {
-  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
-  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
+  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
   imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
 }
 
@@ -65,8 +70,8 @@ nrow(dcc)
 
 # read in imputations
 if ( study == 1 ) {
-  setwd(imputed.data.dir)
-  load("imputed_datasets.RData")  # load "imps", the mids object
+  #setwd(imputed.data.dir)
+  #load("imputed_datasets.RData")  # load "imps", the mids object
   
   # read in the imputations as a list rather than a mids object so that we can pool manually
   setwd(imputed.data.dir)
@@ -94,12 +99,12 @@ foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
               names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
 
 # exploratory psych variables
-psychY = c("spec",
-           "dom",
-           "activ",
-           "importHealth",
+psychY = c("importHealth",
            "importEnviro",
-           "importAnimals")
+           "importAnimals",
+           "activ",
+           "spec",
+           "dom")
 
 # secondary food outcomes
 secFoodY = c("totalMeat",
@@ -108,8 +113,9 @@ secFoodY = c("totalMeat",
              animProds,
              "totalGood")
 
-# @ do we need to add covid to this?
-fu.vars = c(foodVars, psychY, "aware" )
+# # not used?
+# # @ do we need to add covid to this?
+# fu.vars = c(foodVars, psychY, "aware" )
 
 # raw demographics, prior to collapsing categories for effect modification analyses
 demo.raw = c("sex",
@@ -138,23 +144,15 @@ effect.mods = c("female",
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                 QUICK AND DIRTY
+#                                 OBSOLETE
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# for each thing in the Table 2:
-#  - confidence interval
-#  - also include the medians
-#  - save a density plot of the responses in each group
-#  - pattern it off the res.raw thing below
 
-
-
-
-##### Quick Analyses #####
-# @ quick look at treatment effect!!!
-hist(d$mainY)
-t.test( d$mainY ~ d$treat, na.rm = TRUE  )
-# in study 2, no evidence of lying about past behavior
+# ##### Quick Analyses #####
+# # @ quick look at treatment effect!!!
+# hist(d$mainY)
+# t.test( d$mainY ~ d$treat, na.rm = TRUE  )
+# # in study 2, no evidence of lying about past behavior
 
 # redundant with below
 # # and on intentions
@@ -191,23 +189,187 @@ t.test( d$mainY ~ d$treat, na.rm = TRUE  )
 # }
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                   1. SANITY CHECKS
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
 # table one - wave 1
-CreateTableOne( vars = c(demo.raw), strata = "treat", data = d )
+CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
 
-# differential attrition by treatment group and demographics
-string = paste( "is.na(d$mainY) ~ ", paste( "treat +", effect.mods, collapse=" + "), sep = "" )
-missMod = glm( eval( parse( text = string ) ), family = binomial(link="log"), data = d )
-summary(missMod)
-# completers
-CreateTableOne( vars = c(demo.raw, "passCheck", "aware"), strata = "treat", data = d %>% filter( !is.na(mainY)))
 
+# # dropout 
+# # completers
+# CreateTableOne( vars = c(demo.raw, "passCheck", "aware"), strata = "treat", data = d %>% filter( !is.na(mainY)))
+
+# sanity check: treatment effects
 # main and secondaries t-tests
 CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                 2. DESCRIPTIVE & TABLE 1
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+# for keeping results csv organized
+section = 2
+
+##### Sample Sizes and Retention (For Study 1) #####
+update_result_csv( name = paste( "N wave 1 study", study ),
+                   value = nrow(d) )
+
+
+if ( study == 1 ){
+  
+  update_result_csv( name = paste( "N wave 2 study", study ),
+                     value = nrow(dcc) )
+  
+  # differential attrition by treatment group and demographics
+  string = paste( "!is.na(d$mainY) ~ ", paste( "treat +", effect.mods, collapse=" + "), sep = "" )
+  missMod = glm( eval( parse( text = string ) ), family = binomial(link="log"), data = d )
+  summary(missMod)
+  library(sandwich)
+  coeftest(missMod, vcov = vcovHC(missMod, type = "HC0"))
+  # more likely to drop out: older subjects, college grads
+  
+  # probability of being missing by treatment group
+  # not conditional on covariates
+  t = d %>% group_by(treat) %>%
+    summarise( Pmiss = mean(!is.na(mainY) ) )
+  
+  update_result_csv( name = paste( "Retention perc overall" ),
+                     value = round( mean(!is.na(d$mainY)) * 100, 0) )
+  
+  update_result_csv( name = paste( "Retention perc treat", t$treat ),
+                     value = round(t$Pmiss * 100, 0) )
+}
+
+##### Table 1 (Demographics Among All Wave 1 Subjects) #####
+# stratify demographics by treatment group
+t1.treat = make_table_one(.d = d %>% filter( treat == 1 ) )
+t1.cntrl = make_table_one(.d = d %>% filter( treat == 0 ) )
+
+# if not equal, it's because a level occurs in one stratum but not the other 
+nrow(t1.treat)
+nrow(t1.cntrl)
+# find the offending row
+t1.cntrl$Characteristic[ !t1.cntrl$Characteristic %in% t1.treat$Characteristic ]
+
+# ad hoc fix for row mismatches
+if ( study ==1 ){
+  t1.treat = t1.treat %>% add_row( data.frame(Characteristic = "a.subHS",
+                                              Summary = "0 (0%)"),
+                                   .after = 7)
+}
+
+
+t1 = data.frame( Characteristic = t1.treat$Characteristic,
+                 Intervention = t1.treat$Summary,
+                 Control = t1.cntrl$Summary )
+
+
+# save it
+if( overwrite.res == TRUE ){
+  setwd(results.dir)
+  write.csv(t1, "table1.csv")
+}
+
+
+##### One-Off Stats for Paper #####
+# @@not yet reported in paper
+# COVID influence on food choices (given at wave 2)
+if ( study == 1 ){
+  
+  # demographics to comment on specifically
+  # age
+  update_result_csv( name = "Age median study 1",
+                     value = round( median(d$age), 0 ) )
+  
+  # at least college-educated
+  update_result_csv( name = "Perc educ at least college study 1",
+                     value = round( 100 * mean( d$educ %in% c("d.4yr", "e.post") ), 0 ) )
+  
+  # politics
+  update_result_csv( name = "Perc Democrats study 1",
+                     value = round( 100 * mean( d$party == "Democrat" ), 0 ) )
+  
+  update_result_csv( name = "Perc Republicans study 1",
+                     value = round( 100 * mean( d$party == "Republican" ), 0 ) )
+  
+  update_result_csv( name = "Median county liberalism study 1",
+                     value = round( median( 100 * d$pDem ), 0 ) )
+  
+  
+  # COVID effect on choices
+  table(d$covid)
+  update_result_csv( name = "Perc COVID less choice",
+                     value = round( 100 * mean(d$covid %in% c("a.muchLess",
+                                                              "b.somewhatLess",
+                                                              "c.slightlyLess"), na.rm = TRUE), 0 ) )
+  
+  update_result_csv( name = "Perc COVID more choice",
+                     value = round( 100 * mean(d$covid %in% c("e.slightlyMore",
+                                                              "f.somewhatMore",
+                                                              "g.muchMore") ), 0 ) )
+  
+  update_result_csv( name = "Perc COVID no change",
+                     value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 0 ) )
+  
+  # attention check
+  update_result_csv( name = "Perc videoContent animals treat 1 study 1",
+                     value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 1]) ), 0 ) )
+  
+  update_result_csv( name = "Perc videoContent animals treat 0 study 1",
+                     value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 0]) ), 0 ) )
+  
+  update_result_csv( name = "Perc pass check treat 1 study 1",
+                     value = round( 100 * mean(d$passCheck[ d$treat == 1] == TRUE), 0 ) )
+  
+  update_result_csv( name = "Perc pass check treat 0 study 1",
+                     value = round( 100 * mean(d$passCheck[ d$treat == 0] == TRUE), 0 ) )
+
+}
+
+
+##### Descriptive Look at Complete-Case Treatment Group Differences #####
+
+# examine skewed outcome (immaterial given sample size)
+hist(dcc$mainY)
+
+# treatment group differences...!
+ggplot( data = dcc, 
+        aes( x = treat.pretty,
+             y = mainY ) ) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) + 
+  theme_bw()
+
+# and for the intention outcome measures
+if ( study == 2 ){
+  # continuous intentions
+  ggplot( data = dcc, 
+          aes( x = treat.pretty,
+               y = intentionCont ) ) +
+    geom_violin(draw_quantiles = c(.25, .5, .75)) + 
+    theme_bw()
+  
+  # binary intentions
+  dcc %>% group_by(treat) %>%
+    summarise( mean(intentionReduce) )
+}
+
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                            3. COMPLETE-CASE ANALYSES
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+section = 3
+
+# for Study 1, these are just a sensitivity analysis and sanity check
+# for Study 2, they are the main analysis
+
 ##### All Outcomes #####
 
-# bm
 if ( study == 1 ) vars = c("mainY", secFoodY, psychY)
 if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 
@@ -221,8 +383,9 @@ for ( i in vars ){
   
   # Hedges' g
   # recode to be more intuitive
+  # as.factor in RHS to avoid annoying warnings
   library(effsize)
-  es = cohen.d( d[[i]] ~ (d$treat==0), hedges.correction = TRUE )
+  es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
   
   new.row = data.frame( outcome = i,
                         mn0 = m0,
@@ -240,6 +403,7 @@ for ( i in vars ){
                         note = NA) 
   if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
 }
+
 
 
 # for Study 2: handle binary intention variable differently
@@ -274,121 +438,72 @@ if ( study == 2 ){
   res.raw = rbind(res.raw, new.row)
 }
 
-# round it
-res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("outcome", "note" ) ], function(x) round(x,2) )
 
+##### Save Both Raw and Cleaned-Up Results Tables #####
+
+# in order to have the unrounded values
 setwd(results.dir)
 write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
 
-#bm
+# cleaned-up version
+# round it
+res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("outcome", "note" ) ], function(x) round(x,2) )
+
+res.nice = data.frame( analysis = res.raw$outcome,
+                       est = stat_CI( res.raw$mn.diff, res.raw$lo, res.raw$hi),
+                       g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
+                       pval = res.raw$pval )
+
+
+setwd(results.dir)
+write.csv(res.nice, "trt_effect_all_outcomes_cc_pretty.csv")
+
+# for pasting into TeX supplement
+library(xtable)
+print( xtable( res.nice,
+               include.rownames = FALSE ) )
+
 
 ##### Effect Modification #####
 
-string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
-ols = lm( eval( parse( text = string ) ), data = d )
+# sanity check only
 
-
-coefNames = c("treat:female",
-              "treat:oldTRUE",
-              "treat:collegeGradTRUE",
-              "treat:cauc",
-              "treat:democrat",
-              "treat:pDem")
-
-rm(res.raw)
-for ( i in coefNames ){
-  new.row = my_ols_hc0(coefName = i, dat = d, ols = ols)
-  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-}
-
-# add effect modifier name
-res.raw = res.raw %>% add_column( eff.mod = row.names(res.raw),
-                                  .before = 1 ) 
-
-# round it
-# negative coefficients mean intervention worked better at reducing mainY
-res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "eff.mod"], function(x) round(x,2) )
-
-setwd(prepped.data.dir)
-write.csv(res.raw, "mainY_effect_modifiers.csv")
-
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                 DESCRIPTIVE & TABLE 1
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-##### Table 1 #####
-# stratify demographics by treatment group
-t1.treat = make_table_one(.d = d %>% filter( treat == 1 ) )
-t1.cntrl = make_table_one(.d = d %>% filter( treat == 0 ) )
-
-t1 = data.frame( Characteristic = t1.treat$Characteristic,
-                 Intervention = t1.treat$Summary,
-                 Control = t1.cntrl$Summary )
-
-# save it
-if( overwrite.res == TRUE ){
-  setwd(results.dir)
-  write.csv(t1, "table1.csv")
-}
-
-##### One-Off Stats for Paper #####
-# COVID influence on food choices (given at wave 2)
-if ( study == 1 ){
-  table(d$covid)
-  update_result_csv( name = "Perc COVID less choice",
-                     section = 0,
-                     value = round( 100 * mean(d$covid %in% c("a.muchLess",
-                                                              "b.somewhatLess",
-                                                              "c.slightlyLess"), na.rm = TRUE), 2 ),
-                     print = TRUE )
+if (study == 1) {
+  coefNames = c("treat:female",
+                "treat:oldTRUE",
+                "treat:collegeGradTRUE",
+                "treat:cauc",
+                "treat:democrat",
+                "treat:pDem")
   
-  update_result_csv( name = "Perc COVID more choice",
-                     section = 0,
-                     value = round( 100 * mean(d$covid %in% c("e.slightlyMore",
-                                                              "f.somewhatMore",
-                                                              "g.muchMore") ), 2 ),
-                     print = TRUE )
+  string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+  ols = lm( eval( parse( text = string ) ), data = d )
   
-  update_result_csv( name = "Perc COVID no change",
-                     section = 0,
-                     value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 2 ),
-                     print = TRUE )
-}
-
-
-##### Descriptive Look at Complete-Case Treatment Group Differences #####
-
-# examine skewed outcome (immaterial given sample size)
-hist(dcc$mainY)
-
-# treatment group differences...!
-ggplot( data = dcc, 
-        aes( x = treat.pretty,
-             y = mainY ) ) +
-  geom_violin(draw_quantiles = c(.25, .5, .75)) + 
-  theme_bw()
-
-# and for the intention outcome measures
-if ( study == 2 ){
-  # continuous intentions
-  ggplot( data = dcc, 
-          aes( x = treat.pretty,
-               y = intentionCont ) ) +
-    geom_violin(draw_quantiles = c(.25, .5, .75)) + 
-    theme_bw()
   
-  # binary intentions
-  dcc %>% group_by(treat) %>%
-    summarise( mean(intentionReduce) )
+  rm(res.raw)
+  for ( i in coefNames ){
+    new.row = my_ols_hc0(coefName = i, dat = d, ols = ols)
+    if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+  }
+  
+  # add effect modifier name
+  res.raw = res.raw %>% add_column( eff.mod = row.names(res.raw),
+                                    .before = 1 ) 
+  
+  # round it
+  # negative coefficients mean intervention worked better at reducing mainY
+  res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "eff.mod"], function(x) round(x,2) )
+  
+  setwd(prepped.data.dir)
+  write.csv(res.raw, "mainY_effect_modifiers_cc.csv")
+  
 }
 
 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                    TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES
+#                    4. TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # Primary analyses: We will conduct a 2-sample Welch’s t-test of total consumption by treatment group, reporting
@@ -410,10 +525,8 @@ if ( study == 2 ){
 # secondary outcomes on which the intervention has an effect (VanderWeele & Mathur, 2019).
 
 
-
-# # to pass fn as argument:
-# fake = 'my_ttest(yName = "mainY", dat = .d)'
-# mi.res = lapply( imps, function(.d) eval(parse(text = fake)) )
+# bm
+section = 4
 
 
 
@@ -426,6 +539,8 @@ n.secY = sum( length(secFoodY), length(psychY) )
 # variables to analyze
 toAnalyze = c("mainY", secFoodY, psychY )
 if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
+
+
 
 if ( exists("res.raw") ) rm(res.raw)
 for ( i in toAnalyze ) {
@@ -462,67 +577,73 @@ for ( i in toAnalyze ) {
 
 res.raw
 
+##### Save Both Raw and Cleaned-Up Results Tables #####
+
+# in order to have the unrounded values
+setwd(results.dir)
+write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
+
+# cleaned-up version
+# round it
+res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
+
+res.nice = data.frame( analysis = res.raw$analysis,
+                       est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
+                       g.est = stat_CI( res.raw$g.est, res.raw$g.lo, res.raw$g.hi),
+                       pval = res.raw$pval,
+                       pvalBonf = res.raw$pvalBonf )
+
+
+setwd(results.dir)
+write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
+
 
 ##### One-Off Stats for Paper: Main Estimates #####
 update_result_csv( name = "mainY diff",
-                   section = 0,
                    value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "mainY diff lo",
-                   section = 0,
                    value = round( res.raw$lo[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "mainY diff hi",
-                   section = 0,
                    value = round( res.raw$hi[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "mainY diff pval",
-                   section = 0,
                    value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
                    print = TRUE )
 
 update_result_csv( name = "mainY diff g",
-                   section = 0,
                    value = round( res.raw$g.est[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "mainY diff g lo",
-                   section = 0,
                    value = round( res.raw$g.lo[ res.raw$analysis == "mainY MI"], 2 ) )
 
 update_result_csv( name = "mainY diff g hi",
-                   section = 0,
                    value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
 
 
 ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
 update_result_csv( name = "Bonferroni alpha secY",
-                   section = 0,
-                   value = round( alpha2, 4 ),
-                   print = TRUE )
+                   value = round( alpha2, 4 ) )
+
+update_result_csv( name = "Bonferroni number secY",
+                   value = n.secY )
 
 update_result_csv( name = "Number secY pass Bonf",
-                   section = 0,
-                   value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ),
-                   print = TRUE )
+                   value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ) )
 
 # harmonic mean p-values by subsets of effect modifiers
 update_result_csv( name = "HMP all secY",
-                   section = 0,
                    value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
-                                               L = sum(res.raw$group == "secY") ), 2 ),
-                   print = TRUE )
+                                               L = sum(res.raw$group == "secY") ), 2 ) )
 
 update_result_csv( name = "HMP food secY",
-                   section = 0,
                    value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
-                                               L = sum(res.raw$group.specific == "secY food") ), 2 ),
-                   print = TRUE )
+                                               L = sum(res.raw$group.specific == "secY food") ), 2 ) )
 
 update_result_csv( name = "HMP psych secY",
-                   section = 0,
                    value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
-                                               L = sum(res.raw$group.specific == "secY psych") ), 2 ),
-                   print = TRUE )
+                                               L = sum(res.raw$group.specific == "secY psych") ), 2 ) )
 
 
 

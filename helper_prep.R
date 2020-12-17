@@ -47,6 +47,17 @@ whichStrings = function(pattern, x){
 
 ########################### FN: RECODE VARIABLES DURING DATA PREP ###########################
 
+# turns a vector of Qualtrics completion times (e.g., "8/26/20 7:38") into date objects
+dateify = function(x) {
+  # need to split on space because there are also times in the strings
+  x2 = strsplit(x, " ")
+  # keep only the first part (date)
+  x3 = unlist( lapply(x, function(.x) .x[[1]]) )
+  as.Date(x3, "%m/%d/%y")
+}
+# dateify("8/26/20 7:38")
+# dateify("12/26/20 7:38")
+
 # recodes a Qualtrics checkbox question (i.e., a single column with comma-separated options)
 #  into its consituent non-mutually-exclusive dummy variables
 recode_checkboxes = function( .d, 
@@ -157,6 +168,15 @@ make_derived_vars = function(.d,
   .d$pDem2 = .d$pDem/0.1
   
   .d$collegeGrad = .d$educ %in% c("c.2yr", "d.4yr", "e.post")
+  
+  
+  ##### Misc #####
+  # turn Qualtrics completion times into date objects
+  .d$w1.date = dateify(.d$w1.date)
+  .d$w2.date = dateify(.d$w2.date)
+  
+  # calculate follow-up time for each subject
+  .d$fuDays = .d$w2.date - .d$w1.date
 
   return(.d)
 }

@@ -305,14 +305,33 @@ mi_pool = function( ests, ses ){
 ##### IV Regression #####
 
 my_ivreg = function(dat){
+
+  iv = ivreg(mainY ~ treat | passCheck , data = dat)
   
-  iv = ivreg(mainY ~ passCheck | treat, data = dat)
-  
-  est = coef(iv)["finishedVidTRUE"]
+  est = coef(iv)["treat"]
   summ = summary(iv, vcov = sandwich, diagnostics = TRUE)
-  se = sqrt( summ$vcov["passCheckTRUE", "passCheckTRUE"] )
+  se = sqrt( summ$vcov["treat", "treat"] )
   t = abs(est)/se
   tcrit = qt(.975, df = iv$df.residual)
+  
+  # SMD
+  tab = suppressMessages( dat %>% group_by(treat) %>%
+                            summarise( m = mean(mainY, na.rm = TRUE),
+                                       sd = sd(mainY, na.rm = TRUE),
+                                       n = n() ) )
+  num = (tab$n[1] - 1) * tab$sd[1]^2 + (tab$n[2] - 1) * tab$sd[2]^2
+  denom = (tab$n[1] - 1) + (tab$n[2] - 1)
+  sd.pooled = sqrt(num/denom)
+  # adjustment factor for Hedges' g
+  # https://www.statisticshowto.com/hedges-g/#:~:text=Hedges'%20g%20is%20a%20measure,of%20up%20to%20about%204%25.
+  N = sum(tab$n)
+  J = ( (N-3) / (N-2.25) ) * sqrt( (N-2) / N )
+  # factor to multiply with the raw mean difference to get Hedges' g
+  term = J / sd.pooled
+  
+  g = est * term
+  
+  #bm
   
   return( data.frame( 
     est = est,
@@ -320,6 +339,11 @@ my_ivreg = function(dat){
     lo = est - tcrit * se,
     hi = est + tcrit * se,
     pval = 2 * ( 1 - pt(t, df = iv$df.residual) ),
+    
+    g = g,
+    g.se = se * term,
+    g.lo = (est - tcrit * se) * term,
+    g.hi = (est + tcrit * se) * term,
     # test for weak instruments
     # from AER package docs:
     # "an F test of the first stage regression for weak instruments"

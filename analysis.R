@@ -241,6 +241,24 @@ if ( study == 1 ){
   
   update_result_csv( name = paste( "Retention perc treat", t$treat ),
                      value = round(t$Pmiss * 100, 0) )
+  
+  # follow-up times
+  update_result_csv( name = "Perc fuDays 12 to 14",
+                     value = round( mean(d$fuDays <= 12, na.rm = TRUE) * 100, 0) )
+  
+  update_result_csv( name = "Mean fuDays",
+                     value = mean(d$fuDays, na.rm = TRUE) )
+  
+  update_result_csv( name = "Median fuDays",
+                     value = median(d$fuDays, na.rm = TRUE) )
+  
+  update_result_csv( name = "Min fuDays",
+                     value = min(d$fuDays, na.rm = TRUE) )
+  
+  update_result_csv( name = "Max fuDays",
+                     value = max(d$fuDays, na.rm = TRUE) )
+
+
 }
 
 ##### Table 1 (Demographics Among All Wave 1 Subjects) #####
@@ -750,7 +768,7 @@ if ( study == 1 ) {
                      value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
                      print = TRUE )
   
- 
+  
 }  # end "if (study ==1 )"
 
 
@@ -759,7 +777,6 @@ if ( study == 1 ) {
 
 ##### Complete-Case Effect Modification Analysis #####
 
-#bm: also do the comparisons plots for CC analyses
 
 # for Study 1, this is a sensitivity analysis
 # for Study 2 (no missing data), this is the only analysis
@@ -843,41 +860,6 @@ if ( run.sanity == TRUE ) {
 #                         SUPPLEMENT: SENSITIVITY ANALYSES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-############################### SOCIAL DESIRABILITY BIAS ################################ 
-
-# NO NEED TO DICHOTOMIZE
-
-# To assess the possible effects of social desirability bias, interpreted
-# as differential measurement error, we will conduct statistical sensitivity analyses that
-# characterize how severe such bias would have to have been in order for the true intervention
-# effect to have been zero (VanderWeele & Li, 2019). We will dichotomize the outcome at the
-# baseline median to do so.
-
-# repeat main, MI analysis with the dichotomized outcome
-mi.res = lapply( imps, function(.d) my_log_RR(dat = .d) )
-mi.res = do.call(what = rbind, mi.res)
-pooled = mi_pool(ests = mi.res$est, ses = mi.res$se)  # all on log-RR scale
-
-update_result_csv( name = "mainYLow RR",
-                   section = 0,
-                   value = round( exp(pooled$est), 2 ) )
-
-update_result_csv( name = "mainYLow RR lo",
-                   section = 0,
-                   value = round( exp(pooled$lo), 2 ) )
-
-update_result_csv( name = "mainYLow RR hi",
-                   section = 0,
-                   value = round( exp(pooled$hi), 2 ) )
-
-
-# **for differential measurement error to completely explain away the the effect, 
-#  magnitude of differential measurement error (i.e., the maximum direct effect of 
-#  intervention on mismeasured Y*, not through the true Y), must be at least as large
-#  as the observed RR itself
-
-# so we will just report the RRs themselves
-
 
 ############################### SUBJECT AWARENESS ################################ 
 
@@ -887,15 +869,13 @@ update_result_csv( name = "mainYLow RR hi",
 # will not condition on subject awareness in analysis (e.g., via subset analyses or covariate
 # adjustment) to avoid inducing collider bias.
 
-update_result_csv( name = "perc aware tx group",
-                   section = 0,
-                   value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ] ), 2 ),
-                   print = TRUE)
 
-update_result_csv( name = "perc aware cntrl group",
-                   section = 0,
-                   value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ] ), 2 ),
-                   print = TRUE)
+
+update_result_csv( name = "Perc aware tx group",
+                   value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ] ), 0 ) )
+
+update_result_csv( name = "Perc aware cntrl group",
+                   value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ] ), 0 ) )
 
 
 
@@ -907,59 +887,67 @@ update_result_csv( name = "perc aware cntrl group",
 # repeat the primary analysis using only frequencies, rather than total amounts consumed, as
 # the outcome.
 
-# repeat main, MI analysis with the dichotomized outcome
-mi.res = lapply( imps, function(.d) my_ttest(yName = "mainYFreqOnly", dat = .d) )
-mi.res = do.call(what = rbind, mi.res)
-pooled = mi_pool(ests = mi.res$est, ses = mi.res$se)  # all on log-RR scale
+if ( study == 1 ) {
+  # repeat main, MI analysis with the dichotomized outcome
+  mi.res = lapply( imps, function(.d) my_ttest(yName = "mainYFreqOnly", dat = .d) )
+  mi.res = do.call(what = rbind, mi.res)
+  raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
+  SMD = mi_pool(ests = mi.res$g, ses = mi.res$g.se) 
+
+  
+  update_result_csv( name = "mainYFreqOnly diff",
+                     value = round( raw$est, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly lo",
+                     value = round( raw$lo, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly hi",
+                     value = round( raw$hi, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly pval",
+                     value = format_pval( raw$pval, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly diff g",
+                     value = round( SMD$est, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly lo g",
+                     value = round( SMD$lo, 2 ) )
+  
+  update_result_csv( name = "mainYFreqOnly hi g",
+                     value = round( SMD$hi, 2 ) )
+}
 
 
-update_result_csv( name = "mainYFreqOnly diff",
-                   section = 0,
-                   value = round( pooled$est, 2 ) )
-
-update_result_csv( name = "mainYFreqOnly lo",
-                   section = 0,
-                   value = round( pooled$lo, 2 ) )
-
-update_result_csv( name = "mainYFreqOnly hi",
-                   section = 0,
-                   value = round( pooled$hi, 2 ) )
-
-update_result_csv( name = "mainYFreqOnly pval",
-                   section = 0,
-                   value = format_pval( pooled$pval, 2 ),
-                   print = TRUE )
 
 
-
-############################### MISSING DATA METHODS ################################ 
-
-# As a sensitivity analysis for the primary analyses using multiple
-# imputation, we will conduct complete-case analyses. However, note that disagreements
-# between this analysis and multiple imputation can occur if, for example, data are missing at
-# random rather than completely at random, and such a discrepancy would not invalidate the
-# multiple imputation approach.
-
-# Welch's t-test: complete cases
-( tres.cc = my_ttest(yName = "mainY", dat = dcc) )
-
-
-update_result_csv( name = "mainY CC diff",
-                   section = 0,
-                   value = round( tres.cc$est, 2 ) )
-
-update_result_csv( name = "mainY CC lo",
-                   section = 0,
-                   value = round( tres.cc$lo, 2 ) )
-
-update_result_csv( name = "mainY CC hi",
-                   section = 0,
-                   value = round( tres.cc$hi, 2 ) )
-
-update_result_csv( name = "mainY CC pval",
-                   section = 0,
-                   value = format_pval( tres.cc$pval, 2 ),
-                   print = TRUE )
+# ############################### MISSING DATA METHODS ################################ 
+# 
+# # As a sensitivity analysis for the primary analyses using multiple
+# # imputation, we will conduct complete-case analyses. However, note that disagreements
+# # between this analysis and multiple imputation can occur if, for example, data are missing at
+# # random rather than completely at random, and such a discrepancy would not invalidate the
+# # multiple imputation approach.
+# 
+# # Welch's t-test: complete cases
+# ( tres.cc = my_ttest(yName = "mainY", dat = dcc) )
+# 
+# 
+# update_result_csv( name = "mainY CC diff",
+#                    section = 0,
+#                    value = round( tres.cc$est, 2 ) )
+# 
+# update_result_csv( name = "mainY CC lo",
+#                    section = 0,
+#                    value = round( tres.cc$lo, 2 ) )
+# 
+# update_result_csv( name = "mainY CC hi",
+#                    section = 0,
+#                    value = round( tres.cc$hi, 2 ) )
+# 
+# update_result_csv( name = "mainY CC pval",
+#                    section = 0,
+#                    value = format_pval( tres.cc$pval, 2 ),
+#                    print = TRUE )
 
 
 ############################### EFFECTS OF INTERVENTION NONCOMPLIANCE ################################ 
@@ -974,6 +962,8 @@ update_result_csv( name = "mainY CC pval",
 # 2013) if relevant methodological extensions, currently underway, are ready at the time of
 # analysis.
 
+#bm
+
 ##### Look at CC Data #####
 # look at relationship between instrument (treat) and X (video duration)
 # in CC data
@@ -983,10 +973,15 @@ table(dcc$treat, dcc$passCheck)
 # first-stage model (linear probability model; ignore the inference):
 summary( lm( passCheck ~ treat, data = dcc) )
 
+my_ivreg(dat = dcc)
+
+#bm
+
 ##### IV for MI Datasets #####
 mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
 mi.res = do.call(what = rbind, mi.res)
-pooled = mi_pool(ests = mi.res$est, ses = mi.res$se) 
+raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
+SMD = mi_pool(ests = mi.res$g, ses = mi.res$g.se) 
 
 # look at this manually to make sure we don't have a weak instrument
 #  (though that seems inconceivable in this case):
@@ -1002,21 +997,25 @@ summary( ivreg(mainY ~ passCheck | treat, data = imps[[3]]), diagnostics = TRUE 
 
 
 update_result_csv( name = "mainY IV diff",
-                   section = 0,
-                   value = round( pooled$est, 2 ) )
+                   value = round( raw$est, 2 ) )
 
 update_result_csv( name = "mainY IV lo",
-                   section = 0,
-                   value = round( pooled$lo, 2 ) )
+                   value = round( raw$lo, 2 ) )
 
 update_result_csv( name = "mainY IV hi",
-                   section = 0,
-                   value = round( pooled$hi, 2 ) )
+                   value = round( raw$hi, 2 ) )
 
 update_result_csv( name = "mainY IV pval",
-                   section = 0,
-                   value = format_pval( pooled$pval, 2 ),
-                   print = TRUE )
+                   value = format_pval( raw$pval, 3 ) )
+
+update_result_csv( name = "mainY IV g",
+                   value = round( SMD$est, 2 ) )
+
+update_result_csv( name = "mainY IV g lo",
+                   value = round( SMD$lo, 2 ) )
+
+update_result_csv( name = "mainY IV g hi",
+                   value = round( SMD$hi, 2 ) )
 
 
 ############################### INTERVENTION EFFECT MAINTENANCE OVER TIME ################################

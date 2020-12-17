@@ -117,8 +117,7 @@ make_derived_vars = function(.d,
   
   hist(.d$totalGood/16)
   
-  # bm1
-  
+
   # recode secondary psych scales
   .d = recode_psych_scale( .d = .d,
                            scale = "spec",
@@ -142,10 +141,21 @@ make_derived_vars = function(.d,
   .d$aware = (.d$guessPurpose == "g.meatAnimProd") & (.d$guessPurpose2 == "c.decrease")
   
   
-  ##### Dichotomize effect modifiers #####
+  ##### Simplify effect modifiers #####
   .d$female = NA; .d$female[ .d$sex == "a.Female" ] = 1; .d$female[ .d$sex == "b.Male" ] = 0  # NA for those marking "Other"
-  .d$old = (.d$age > 25)
-  .d$democrat = NA; .d$democrat[ .d$party == "Democrat" ] = 1; .d$democrat[ .d$party == "Republican" ] = 0  # exclude independents  # excludes Independents and "don't knows"
+  
+  .d$young = (.d$age <= 25)
+  
+  # political party: group independents and "I don't know" people under "a.Neither" category
+  .d$party2 = NA
+  .d$party2[ .d$party == "Independent" ] = "a.Neither"
+  .d$party2[ .d$party == "Other/I don't know" ] = "a.Neither"
+  .d$party2[ .d$party == "Democrat" ] = "b.Democrat"
+  .d$party2[ .d$party == "Republican" ] = "c.Republican"
+  
+  # pDem in terms of a 10-percentage point increase in Democrats
+  .d$pDem2 = .d$pDem/0.1
+  
   .d$collegeGrad = .d$educ %in% c("c.2yr", "d.4yr", "e.post")
 
   return(.d)

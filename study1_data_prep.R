@@ -21,6 +21,9 @@ library(tableone)
 # overwrite old results?
 overwrite.res = TRUE
 
+# should sanity checks be run?
+run.sanity = FALSE
+
 # should we impute from scratch or read in saved datasets?
 # from scratch takes about an hour
 impute.from.scratch = FALSE
@@ -232,61 +235,62 @@ if ( overwrite.prepped.data == TRUE ) {
 setwd(prepped.data.dir)
 w1 = read.csv("prepped_data_W1_R1.csv")
 
-# quick look at demographics
-temp = w1 %>% select( c("treat", demoVars, "passCheck", "onTaskMin") )
-t = CreateTableOne(data = temp, strata = "treat")
-setwd(results.dir)
-setwd("Sanity checks after W1")
-write.csv( print(t, noSpaces = TRUE, printToggle = FALSE), 
-           "ugly_table1_W1.csv")
-
-
-##### Look for Expected Associations Among Variables #####
-
-# reported parties vs. counties' pDem
-# but exclude states with very few responses
-summary( glm( party == "Democrat" ~ pDem,
-              data = w1,
-              family = binomial( link = "log" ) ) )
-# makes sense :)
-
-# age and education
-summary( lm( age ~ educ, data = w1 ) )
-
-
-##### Map of Subjects' Locations #####
-# just for fun
-# location map
-temp = w1 %>% group_by(state) %>%
-  summarise( count = n(),
-             pDem = mean(pDem),
-             pDemReported = mean( (party == "Democrat")[ party %in% c("Democrat", "Republican") ] ) )
-dim(temp) # should be <= 52
-temp$region <- tolower(temp$state)
-library(ggplot2)
-library(maps)
-library(mapproj)
-states <- map_data("state")
-map.df <- merge(states,temp, by="region", all.x=T)
-map.df <- map.df[order(map.df$order),]
-
-ggplot(map.df, aes(x=long,y=lat, group=group))+
-  geom_polygon(aes(fill=count))+
-  geom_path()+ 
-  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
-  coord_map()
-ggsave("states_map_W1.pdf",
-       height = 4.52,
-       width = 7.24,
-       units = "in")
-
-# # pDem from MIT data
-# ggplot(map.df, aes(x=long,y=lat, group=group))+
-#   geom_polygon(aes(fill=pDem))+
-#   geom_path()+ 
-#   scale_fill_gradient(low = "red", high = "blue", na.value="grey90")+
-#   coord_map()
-
+if ( run.sanity == TRUE ){
+  # quick look at demographics
+  temp = w1 %>% select( c("treat", demoVars, "passCheck", "onTaskMin") )
+  t = CreateTableOne(data = temp, strata = "treat")
+  setwd(results.dir)
+  setwd("Sanity checks after W1")
+  write.csv( print(t, noSpaces = TRUE, printToggle = FALSE), 
+             "ugly_table1_W1.csv")
+  
+  
+  ##### Look for Expected Associations Among Variables #####
+  
+  # reported parties vs. counties' pDem
+  # but exclude states with very few responses
+  summary( glm( party == "Democrat" ~ pDem,
+                data = w1,
+                family = binomial( link = "log" ) ) )
+  # makes sense :)
+  
+  # age and education
+  summary( lm( age ~ educ, data = w1 ) )
+  
+  
+  ##### Map of Subjects' Locations #####
+  # just for fun
+  # location map
+  temp = w1 %>% group_by(state) %>%
+    summarise( count = n(),
+               pDem = mean(pDem),
+               pDemReported = mean( (party == "Democrat")[ party %in% c("Democrat", "Republican") ] ) )
+  dim(temp) # should be <= 52
+  temp$region <- tolower(temp$state)
+  library(ggplot2)
+  library(maps)
+  library(mapproj)
+  states <- map_data("state")
+  map.df <- merge(states,temp, by="region", all.x=T)
+  map.df <- map.df[order(map.df$order),]
+  
+  ggplot(map.df, aes(x=long,y=lat, group=group))+
+    geom_polygon(aes(fill=count))+
+    geom_path()+ 
+    scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+    coord_map()
+  ggsave("states_map_W1.pdf",
+         height = 4.52,
+         width = 7.24,
+         units = "in")
+  
+  # # pDem from MIT data
+  # ggplot(map.df, aes(x=long,y=lat, group=group))+
+  #   geom_polygon(aes(fill=pDem))+
+  #   geom_path()+ 
+  #   scale_fill_gradient(low = "red", high = "blue", na.value="grey90")+
+  #   coord_map()
+}
 
 
 

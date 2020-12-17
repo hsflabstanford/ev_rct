@@ -15,7 +15,7 @@ vr = function(){
   View( read.csv("stats_for_paper.csv") )
 }
 
-# make a f
+
 
 ########################### FNs FOR STATISTICS ###########################
 
@@ -95,8 +95,26 @@ my_ttest = function( yName, dat ){
 
 ##### Do OLS with Effect Modifier with Robust SEs #####
 
+
+# for all coefs in regression, organize estimates and robust inference
+#  into dataframe
+my_ols_hc0_all = function(dat, ols, yName){
+  
+  coefNames = as.list( names( ols$coefficients) )
+  temp = lapply( coefNames, function(.coefName) {
+    my_ols_hc0(coefName = .coefName, dat = dat, ols = ols, yName = yName)
+  } )
+  
+  # yields dataset
+  do.call( what = rbind, temp )
+}
+
+
 # ols: the OLS model with all the effect modifiers
-my_ols_hc0 = function( coefName, dat, ols ){
+# needs dataset itself to calculate Hedges' g
+my_ols_hc0 = function( coefName, dat, ols, yName ){
+  
+  dat$Y = dat[[yName]]
   
   ( se.ols = sqrt( vcov(ols)[coefName, coefName] ) )
   ( bhat.ols = coef(ols)[coefName] )
@@ -115,8 +133,8 @@ my_ols_hc0 = function( coefName, dat, ols ){
   #  just transforming the final pooled estimate to an SMD, because SD(Y|X) differs 
   #  in each imputed dataset
   tab = suppressMessages( dat %>% group_by(treat) %>%
-                            summarise( m = mean(mainY, na.rm = TRUE),
-                                       sd = sd(mainY, na.rm = TRUE),
+                            summarise( m = mean(Y, na.rm = TRUE),
+                                       sd = sd(Y, na.rm = TRUE),
                                        n = n() ) )
   num = (tab$n[1] - 1) * tab$sd[1]^2 + (tab$n[2] - 1) * tab$sd[2]^2
   denom = (tab$n[1] - 1) + (tab$n[2] - 1)
@@ -203,6 +221,47 @@ my_log_RR = function( dat ){
 
 
 ##### Fn: Pool Multiple Imputations Via Rubin's Rules #####
+
+
+# for all coefficients in model
+# mi.res: the list with length M
+mi_pool_all = function(.mi.res){
+
+  coefNames = as.list( names( .mi.res$coefficients) )
+  # get number of coefs from first imputation
+  nCoefs = nrow(.mi.res[[1]] )
+  
+  # list with one element per coefficient
+  # first for the coeffs on the raw scale
+  temp = lapply( 1:nCoefs, function(i) {
+      # to mi_pool, pass ests and SEs extracted from each imputation in the list
+      raw = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$est[i] ) ),
+               ses = unlist( lapply( .mi.res, function(j) j$se[i] ) ) )
+      
+      SMD = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$g[i] ) ),
+                     ses = unlist( lapply( .mi.res, function(j) j$g.se[i] ) ) )
+      names(SMD) = paste( "g.", names(SMD), sep = "" )
+      
+      cbind(raw, SMD)
+  } )
+  
+  # yields dataset
+  .res = do.call( what = rbind, temp )
+  row.names(.res) = row.names(.mi.res[[1]])
+  
+  
+  # add Bonferroni p-values, counting only the effect modifiers 
+  #  using the fact that their names have colons
+  modNames = row.names(.res)[ grepl( pattern = ":", x = row.names(.res) ) ]
+  nMods = length(modNames)
+  .res$pvalBonf = NA
+  .res$pvalBonf[ row.names(.res) %in% modNames ] = pmin( 1, .res$pval[ row.names(.res) %in% modNames ] * nMods )
+  
+  return(.res)
+}
+
+
+# for a single coefficient
 # ests: ests from m imputations
 # ses: ses from m imputations
 mi_pool = function( ests, ses ){

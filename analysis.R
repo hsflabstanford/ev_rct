@@ -25,7 +25,7 @@ library(harmonicmeanp)
 study = 1
 
 ##### Working Directories #####
- 
+
 overleaf.dir = "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
 # results dir not specific to this study (for saving results csv)
 general.results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
@@ -134,11 +134,11 @@ demo.raw = c("sex",
              "pDem")
 
 effect.mods = c("female",
-                "old",
+                "young",
                 "collegeGrad",
-                "cauc",  # probably will be the very dominant category
-                "democrat",
-                "pDem")
+                "cauc",  
+                "party2",
+                "pDem2")
 
 
 
@@ -326,7 +326,7 @@ if ( study == 1 ){
   
   update_result_csv( name = "Perc pass check treat 0 study 1",
                      value = round( 100 * mean(d$passCheck[ d$treat == 0] == TRUE), 0 ) )
-
+  
 }
 
 
@@ -410,17 +410,17 @@ for ( i in vars ){
 if ( study == 2 ){
   # get inference for risk difference
   mod1 = lm( intentionReduce ~ treat,
-            data = d )
+             data = d )
   mod1Inf = coeftest(mod1, vcov = vcovHC(mod1, type = "HC0"))["treat",]
   df = nrow(d) - 2
   tcrit = qt(p = 0.975, df = df)
   
   # get estimate and inference for RR
   mod2 = glm( intentionReduce ~ treat,
-             data = d,
-             family = binomial(link="log") )
+              data = d,
+              family = binomial(link="log") )
   mod2Inf = confint(mod2)
-
+  
   new.row = data.frame( outcome = "intentionReduce",
                         mn0 = mean( d$intentionReduce[d$treat == 0] ),
                         mn1 = mean( d$intentionReduce[d$treat == 1] ),
@@ -464,42 +464,6 @@ print( xtable( res.nice,
                include.rownames = FALSE ) )
 
 
-##### Effect Modification #####
-
-# sanity check only
-
-if (study == 1) {
-  coefNames = c("treat:female",
-                "treat:oldTRUE",
-                "treat:collegeGradTRUE",
-                "treat:cauc",
-                "treat:democrat",
-                "treat:pDem")
-  
-  string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
-  ols = lm( eval( parse( text = string ) ), data = d )
-  
-  
-  rm(res.raw)
-  for ( i in coefNames ){
-    new.row = my_ols_hc0(coefName = i, dat = d, ols = ols)
-    if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-  }
-  
-  # add effect modifier name
-  res.raw = res.raw %>% add_column( eff.mod = row.names(res.raw),
-                                    .before = 1 ) 
-  
-  # round it
-  # negative coefficients mean intervention worked better at reducing mainY
-  res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw)== "eff.mod"], function(x) round(x,2) )
-  
-  setwd(prepped.data.dir)
-  write.csv(res.raw, "mainY_effect_modifiers_cc.csv")
-  
-}
-
-
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -525,7 +489,6 @@ if (study == 1) {
 # secondary outcomes on which the intervention has an effect (VanderWeele & Mathur, 2019).
 
 
-# bm
 section = 4
 
 
@@ -672,68 +635,196 @@ update_result_csv( name = "HMP psych secY",
 # which the intervention might best be targeted.
 
 
-##### Sanity Check #####
+
 # look at effect modifiers as they'll be coded in analysis
 CreateTableOne( vars = effect.mods, 
                 data = dcc,
                 includeNA = TRUE)  # last only works for NA
 
-# for Bonferroni
-n.mods = length(effect.mods)
-( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
+# # for Bonferroni
+# n.mods = length(effect.mods)
+# ( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
+# 
+# # names of coefficient estimates as they'll appear in the model
+# coefNames = c("treat:female",
+#               "treat:youngTRUE",
+#               "treat:collegeGradTRUE",
+#               "treat:cauc",
+#               "treat:party2b.Democrat",
+#               "treat:party2c.Republican",
+#               "treat:pDem")
 
-# names of coefficient estimates as they'll appear in the model
-coefNames = c("treat:female",
-              "treat:oldTRUE",
-              "treat:collegeGradTRUE",
-              "treat:cauc",
-              "treat:democrat",
-              "treat:pDem")
+
+##### Multiple Imputation Effect Modification Analysis #####
+
+# outcome depends on study
+#@actually not necessary becase study 2 won't use MI
+if ( study == 1 ) yName = "mainY"
+#if ( study == 2 ) yName = "intentionCont" #@spelled right?
 
 
-for ( i in coefNames ) {
+if ( exists("res.raw") ) rm(res.raw)
+
+
+if ( study == 1 ) {
   
-  mi.res = lapply( imps, function(.d) {
+  # for each imputation, fit one model with all effect modifiers
+  # returns a list of lm objects, one for each imputation
+  mi.res = lapply( imps, function(.imp) {
     # fit one model with all effect modifiers
-    string = paste( "mainY ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
-    ols = lm( eval( parse( text = string ) ), data = .d )
+    string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+    ols = lm( eval( parse( text = string ) ), data = .imp )
     
-    my_ols_hc0(coefName = i, dat = .d, ols = ols)
-  }  )
+    my_ols_hc0_all( dat = .imp, ols = ols, yName = yName )
+    
+  }  ) 
   
-  mi.res = do.call(what = rbind, mi.res)
   
-  part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
-  part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
-  names(part2) = paste( "g.", names(part2), sep = "" )
-  new.row = cbind(part1, part2)
+  res.raw = mi_pool_all(.mi.res = mi.res)
   
-  new.row$pvalBonf = min( 1, new.row$pval * n.mods )
-  new.row$group = "mod"
-  new.row$group.specific = "mod"
+  ##### Save Both Raw and Cleaned-Up Results Tables #####
+  # in order to have the unrounded values
+  setwd(results.dir)
+  write.csv(res.raw, "effect_mods_mi.csv")
   
-  # add name of this analysis
-  string = paste(i, " MI", sep = "")
-  new.row = add_column(new.row, analysis = string, .before = 1)
+  # cleaned-up version
+  # round it
+  # save row names before they get removed by dplyr
+  rowNames = row.names(res.raw)
+  res.raw2 = res.raw %>% mutate_at( names(res.raw), function(x) round(x,2) )
   
-  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+  res.nice = data.frame( coef = rowNames,
+                         est = stat_CI( res.raw2$est, res.raw2$lo, res.raw2$hi),
+                         g.est = stat_CI( res.raw2$g.est, res.raw2$g.lo, res.raw2$g.hi),
+                         pval = res.raw2$pval,
+                         pvalBonf = res.raw2$pvalBonf
+  )
+  
+  
+  setwd(results.dir)
+  write.csv(res.nice, "effect_mods_mi_pretty.csv")
+  
+  
+  ##### Sanity Check #####
+  # manually reproduce all results for a single coefficient
+  if ( run.sanity == TRUE ) {
+    # which coefficient index (including intercept)
+    i = 2
+    
+    my.mi.res = lapply( imps, function(.imp) {
+      # fit one model with all effect modifiers
+      string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+      ols = lm( eval( parse( text = string ) ), data = .imp )
+      
+      # robust SE
+      se = sqrt( vcovHC( ols, type="HC0")[i, i] )
+      
+      # only extract this one coefficient
+      return( data.frame( est = est, se = se, pval = pval ) )
+    }  ) 
+    
+    my.mi.res = do.call( rbind, my.mi.res )
+    
+    # pool via Rubin's Rules and confirm above results
+    M = length(imps)
+    my.est = mean(my.mi.res$est)
+    # between-imp variance
+    B = var(my.mi.res$est)
+    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
+    
+    expect_equal( my.est, res.raw$est[i] )
+    expect_equal( my.se, res.raw$se[i] )
+    
+    #@: did not check p-values and CI limits (see fn "mi_pool")
+  }
+  
+  
+  ##### One-Off Stats for Paper #####
+  update_result_csv( name = "Bonferroni alpha mods",
+                     section = 0,
+                     value = round( alpha3, 4 ),
+                     print = TRUE )
+  
+  update_result_csv( name = "Number mods pass Bonf",
+                     section = 0,
+                     value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
+                     print = TRUE )
+  
+ 
+}  # end "if (study ==1 )"
+
+
+
+
+
+##### Complete-Case Effect Modification Analysis #####
+
+#bm: also do the comparisons plots for CC analyses
+
+# for Study 1, this is a sensitivity analysis
+# for Study 2 (no missing data), this is the only analysis
+
+if ( study == 1 ) yName = "mainY"
+if ( study == 2 ) yName = "intentionCont"
+
+
+coefNames = paste("treat:", effect.mods, sep = "")
+
+string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+ols = lm( eval( parse( text = string ) ), data = d )
+
+
+
+res.raw = my_ols_hc0_all( dat = d, ols = ols, yName = yName )
+
+setwd(results.dir)
+write.csv(res.raw, "effect_mods_cc.csv")
+
+
+# cleaned-up version
+# round it
+# save row names before they get removed by dplyr
+rowNames = row.names(res.raw)
+res.raw2 = res.raw %>% mutate_at( names(res.raw), function(x) round(x,2) )
+
+res.nice = data.frame( coef = rowNames,
+                       est = stat_CI( res.raw2$est, res.raw2$lo, res.raw2$hi),
+                       g.est = stat_CI( res.raw2$g, res.raw2$g.lo, res.raw2$g.hi),
+                       pval = res.raw2$pval )
+
+
+setwd(results.dir)
+write.csv(res.nice, "effect_mods_cc_pretty.csv")
+
+
+
+##### Sanity Check: Compare CC to MI #####
+
+if ( run.sanity == TRUE ) {
+  setwd(results.dir)
+  res.cc = read.csv("effect_mods_cc.csv")
+  res.mi = read.csv("effect_mods_mi.csv")
+  row.names(res.cc) == row.names(res.mi)
+  
+  ggplot( data = data.frame( cc = res.cc$est, mi = res.mi$est ),
+          aes( x = cc, y = mi ) ) +
+    theme_bw() + 
+    geom_abline( slope = 1, intercept = 0, lty = 2, color = "gray" ) +
+    geom_point()
+  
+  ggplot( data = data.frame( cc = res.cc$se, mi = res.mi$se ),
+          aes( x = cc, y = mi ) ) +
+    theme_bw() + 
+    geom_abline( slope = 1, intercept = 0, lty = 2, color = "gray" ) +
+    geom_point()
+  
+  summary( res.mi$se / res.cc$se )
+  
+  # estimates are very similar, which makes sense given
+  #  how little missing data there is
+  # SEs larger by about 20% with MI 
+  
 }
-
-res.raw
-
-# CC version
-
-
-##### One-Off Stats for Paper #####
-update_result_csv( name = "Bonferroni alpha mods",
-                   section = 0,
-                   value = round( alpha3, 4 ),
-                   print = TRUE )
-
-update_result_csv( name = "Number mods pass Bonf",
-                   section = 0,
-                   value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
-                   print = TRUE )
 
 
 

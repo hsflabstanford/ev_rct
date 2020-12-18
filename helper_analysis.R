@@ -426,7 +426,7 @@ mi_pool = function( ests, ses ){
 
 my_ivreg = function(dat){
 
-  iv = ivreg(mainY ~ treat | passCheck , data = dat)
+  iv = ivreg(mainY ~ treat | passCheck, data = dat)
   
   est = coef(iv)["treat"]
   summ = summary(iv, vcov = sandwich, diagnostics = TRUE)
@@ -451,8 +451,7 @@ my_ivreg = function(dat){
   
   g = est * term
   
-  #bm
-  
+
   return( data.frame( 
     est = est,
     se = se,

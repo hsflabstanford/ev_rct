@@ -117,7 +117,6 @@ if( overwrite.res == TRUE ){
 
 
 ##### One-Off Stats for Paper #####
-# @@not yet reported in paper
 # COVID influence on food choices (given at wave 2)
 if ( study == 1 ){
   
@@ -912,18 +911,4 @@ update_result_csv( name = "mainY IV g lo",
 update_result_csv( name = "mainY IV g hi",
                    value = round( SMD$hi, 2 ) )
 
-
-############################### INTERVENTION EFFECT MAINTENANCE OVER TIME ################################
-
-# As noted above, subjects’ individual follow-up
-# times could potentially range from 10 days to 23 days (though the upper bound could
-# be less depending on how quickly subjects complete the questionnaires after we make them
-# available on Prolific). To estimate the extent to which the intervention effect is maintained
-# over time, we will use generalized least-squares, as above, to regress consumption on a main
-# effect of intervention group assignment and its interaction with the number of days elapsed
-# between a subject’s completion of the baseline wave and of the follow-up wave. If subjects’
-# follow-up times show very little variability (e.g., because they all complete the baseline and
-# follow-up questionnaires soon after we make them available), we may omit this analysis.
-
-
-
+s

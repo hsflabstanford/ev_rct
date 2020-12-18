@@ -1,193 +1,17 @@
 
-# Ideas:
-#   - how much nondiff measurement error would be needed for true effect to be some non-null amount?
+# Meta-notes about this script:
+#  - Each section is self-contained. You can start from anywhere by first running prelims() and then 
+#   running just that section.
 
+rm( list = ls() )
 
-rm(list=ls())
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                      0. PRELIMINARIES
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-##### Packages #####
-library(dplyr)
-library(readr)
-library(tableone)
-library(ggplot2)
-library(tibble)
-library(sandwich)
-library(EValue)
-library(metafor)
-library(AER)
-library(harmonicmeanp)
-
-# which study to analyze (1 or 2)?
-study = 1
-
-##### Working Directories #####
-
-overleaf.dir = "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
-# results dir not specific to this study (for saving results csv)
-general.results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
-
-
-if ( study == 1 ) {
-  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
-  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
-  imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
-}
-
-if (study == 2) {
-  prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 2"
-  results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 2"
-}
-
-
 setwd(code.dir)
 source("helper_analysis.R")
 
-overwrite.res = TRUE
-
-# res.raw will be a table of estimates for main outcome, secondaries, effect modifiers
-# res.overleaf will be individual stats formatted for piping into Overleaf
-if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
-if ( overwrite.res == TRUE & exists("res.overleaf") ) rm(res.raw)
-
-
-
-##### Dataset #####
-setwd(prepped.data.dir)
-if (study == 1) d = read.csv("prepped_merged_data.csv")
-if (study == 2) d = read.csv("prepped_data.csv")
-table(is.na(d$beef))
-
-# complete cases wrt mainY
-# might still have sporadic missing data elsewhere
-dcc = d %>% filter( !is.na(mainY) )
-nrow(dcc)
-
-
-# read in imputations
-if ( study == 1 ) {
-  #setwd(imputed.data.dir)
-  #load("imputed_datasets.RData")  # load "imps", the mids object
-  
-  # read in the imputations as a list rather than a mids object so that we can pool manually
-  setwd(imputed.data.dir)
-  to.read = list.files()[ grepl( pattern = "prepped", x = list.files() ) ]
-  imps = lapply( to.read,
-                 function(x) suppressMessages(read_csv(x)) )
-}
-
-# @maybe unnecessary?
-# study 2 doesn't have imputations
-#  to enable running the same script, just put the complete-case dataset as the imputations
-if ( study == 2 ) {
-  imps = list(dcc)
-}
-
-
-##### Lists of Variables #####
-meats = c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
-animProds = c("dairy", "eggs")
-decoy = c("refined", "beverages")
-goodPlant = c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
-allFoods = c(meats, animProds, decoy, goodPlant)
-
-foodVars = c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
-              names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
-
-# exploratory psych variables
-psychY = c("importHealth",
-           "importEnviro",
-           "importAnimals",
-           "activ",
-           "spec",
-           "dom")
-
-# secondary food outcomes
-secFoodY = c("totalMeat",
-             "totalAnimProd",
-             meats,
-             animProds,
-             "totalGood")
-
-# # not used?
-# # @ do we need to add covid to this?
-# fu.vars = c(foodVars, psychY, "aware" )
-
-# raw demographics, prior to collapsing categories for effect modification analyses
-demo.raw = c("sex",
-             "age",
-             "educ",
-             "cauc",
-             "hisp",
-             "black",
-             "midEast",
-             "pacIsl",
-             "natAm",
-             "SAsian",
-             "EAsian",
-             "SEAsian",
-             "party",
-             "pDem")
-
-effect.mods = c("female",
-                "young",
-                "collegeGrad",
-                "cauc",  
-                "party2",
-                "pDem2")
-
-
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                 OBSOLETE
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-
-# ##### Quick Analyses #####
-# # @ quick look at treatment effect!!!
-# hist(d$mainY)
-# t.test( d$mainY ~ d$treat, na.rm = TRUE  )
-# # in study 2, no evidence of lying about past behavior
-
-# redundant with below
-# # and on intentions
-# if ( study == 2 ) {
-#   # big difference in intentions! 
-#   t.test(d$intentionCont ~ d$treat, na.rm = TRUE)
-#   # **Cohen's d: -0.64 [-0.88, -0.41]
-#   library(effsize)
-#   es = cohen.d( d$intentionCont ~ (d$treat==0), hedges.correction = TRUE )
-#   
-#   # binary version
-#   tab = table( d$treat.pretty, d$intentionReduce )
-# 
-#   library(metafor)
-#   es = escalc( measure = "RR",
-#                ai = tab["Documentary", 2], # X=1, Y=1
-#                bi = tab["Documentary", 1],  # X=1, Y=0
-#                ci = tab["Control", 2], # X=0, Y=1
-#                di = tab["Control", 1] ) # X=0, Y=0
-#   # this is the LOG-RR
-#   exp( es$yi - qnorm(.975) * sqrt(es$vi) )
-#   exp( es$yi + qnorm(.975) * sqrt(es$vi) )
-#   
-#   # another way
-#   mod = glm( intentionReduce ~ treat,
-#        data = d,
-#        family = binomial(link="log") )
-#   # **RR: 3.42 [2.49, 4.92]
-#   exp(mod$coefficients)
-#   exp(confint(mod))
-#   
-#   # wow...HUGE ES on intentions!
-#   
-# }
-
+# makes a bunch of global variables for different directories, lists of variables, etc.,
+#  and reads in datasets
+prelims(study = 1, overwrite.res = TRUE)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   1. SANITY CHECKS
@@ -394,7 +218,7 @@ if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 rm(res.raw)
 for ( i in vars ){
   
-  test = t.test( d[[i]] ~ d$treat, na.rm = TRUE  )
+  test = t.test( d[[i]] ~ (d$treat == FALSE), na.rm = TRUE  )
   
   m0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE )
   m1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE )
@@ -422,6 +246,10 @@ for ( i in vars ){
   if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
 }
 
+# # for Study 2: use absolute value of intention change for more intuitive reporting
+# if ( study == 2 ) {
+#   
+# }
 
 
 # for Study 2: handle binary intention variable differently
@@ -482,6 +310,72 @@ print( xtable( res.nice,
                include.rownames = FALSE ) )
 
 
+##### One-Off Stats for Study 2 #####
+
+# intentions in each group
+update_result_csv( name = "intentionCont mean cntrl study 2",
+                   value = round( res.raw$mn0[ res.raw$outcome == "intentionCont" ], 2 ) )
+
+update_result_csv( name = "Preduce cntrl study 2",
+                   value = round( 100 * mean( d$intentionReduce[d$treat ==0] ), 0 ) )
+
+update_result_csv( name = "intentionCont mean treat study 2",
+                   value = round( res.raw$mn1[ res.raw$outcome == "intentionCont" ], 2 ) )
+
+# sanity check
+mean( d$intentionCont[ d$treat == 0 ] )
+
+update_result_csv( name = "Preduce treat study 2",
+                   value = round( 100 * mean( d$intentionReduce[d$treat ==1] ), 0 ) )
+
+
+
+
+# continuous outcomes
+toReport = c("intentionCont", "mainY", "totalMeat", "totalAnimProd" )
+
+options( scipen = 999 )
+( pvals = format.pval( res.raw$pval[ res.raw$outcome %in% toReport ],eps =  0.0001 ) )
+
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "diff study 2" ),
+                   value = round( res.raw$mn.diff[ res.raw$outcome %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "lo study 2" ),
+                   value = round( res.raw$lo[ res.raw$outcome %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "hi study 2" ),
+                   value = round( res.raw$hi[ res.raw$outcome %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "pval study 2" ),
+                   value = pvals )
+
+
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g study 2" ),
+                   value = round( res.raw$g[ res.raw$outcome %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g lo study 2" ),
+                   value = round( res.raw$g.lo[ res.raw$outcome %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g hi study 2" ),
+                   value = round( res.raw$g.hi[ res.raw$outcome %in% toReport ], 2 ) )
+
+# binary outcome
+# this is actually a risk ratio even though it's in the "g" column
+
+update_result_csv( name = "intentionReduce RR study 2",
+                   value = round( res.raw$g[ res.raw$outcome == "intentionReduce" ], 2 ) )
+
+
+update_result_csv( name = "intentionReduce RR lo study 2",
+                   value = round( res.raw$g.lo[ res.raw$outcome == "intentionReduce" ], 2 ) )
+
+update_result_csv( name = "intentionReduce RR hi study 2",
+                   value = round( res.raw$g.hi[ res.raw$outcome == "intentionReduce" ], 2 ) )
+
+update_result_csv( name = "intentionReduce RR pval study 2",
+                   value = format.pval( res.raw$pval2[ res.raw$outcome == "intentionReduce" ], eps = 0.0001 ) )
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -509,127 +403,129 @@ print( xtable( res.nice,
 
 section = 4
 
-
-
-##### Analyze Each Outcome (Including Primary) #####
-
-# for Bonferroni
-n.secY = sum( length(secFoodY), length(psychY) )
-( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
-
-# variables to analyze
-toAnalyze = c("mainY", secFoodY, psychY )
-if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
-
-
-
-if ( exists("res.raw") ) rm(res.raw)
-for ( i in toAnalyze ) {
-  mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
-  mi.res = do.call(what = rbind, mi.res)
+if ( study == 1 ) {
+  ##### Analyze Each Outcome (Including Primary) #####
   
-  part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
-  part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
-  names(part2) = paste( "g.", names(part2), sep = "" )
-  new.row = cbind(part1, part2)
+  # for Bonferroni
+  n.secY = sum( length(secFoodY), length(psychY) )
+  ( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
+  
+  # variables to analyze
+  toAnalyze = c("mainY", secFoodY, psychY )
+  if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
   
   
-  # Bonferroni-corrected p-value
-  if( i %in% c(secFoodY, psychY) ) {
-    new.row$pvalBonf = min( 1, new.row$pval * n.secY )
-    new.row$group = "secY"
+  
+  if ( exists("res.raw") ) rm(res.raw)
+  for ( i in toAnalyze ) {
+    mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
+    mi.res = do.call(what = rbind, mi.res)
     
-    if( i %in% secFoodY) new.row$group.specific = "secY food"
-    if( i %in% psychY) new.row$group.specific = "secY psych"
+    part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+    part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+    names(part2) = paste( "g.", names(part2), sep = "" )
+    new.row = cbind(part1, part2)
     
-  } else if (i == "mainY") {
-    # for primary outcome
-    new.row$pvalBonf = NA
-    new.row$group = "mainY"
-    new.row$group.specific = "mainY"
+    
+    # Bonferroni-corrected p-value
+    if( i %in% c(secFoodY, psychY) ) {
+      new.row$pvalBonf = min( 1, new.row$pval * n.secY )
+      new.row$group = "secY"
+      
+      if( i %in% secFoodY) new.row$group.specific = "secY food"
+      if( i %in% psychY) new.row$group.specific = "secY psych"
+      
+    } else if (i == "mainY") {
+      # for primary outcome
+      new.row$pvalBonf = NA
+      new.row$group = "mainY"
+      new.row$group.specific = "mainY"
+    }
+    
+    # add name of this analysis
+    string = paste(i, " MI", sep = "")
+    new.row = add_column(new.row, analysis = string, .before = 1)
+    
+    if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
   }
   
-  # add name of this analysis
-  string = paste(i, " MI", sep = "")
-  new.row = add_column(new.row, analysis = string, .before = 1)
+  res.raw
   
-  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-}
+  ##### Save Both Raw and Cleaned-Up Results Tables #####
+  
+  # in order to have the unrounded values
+  setwd(results.dir)
+  write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
+  
+  # cleaned-up version
+  # round it
+  res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
+  
+  res.nice = data.frame( analysis = res.raw$analysis,
+                         est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
+                         g.est = stat_CI( res.raw$g.est, res.raw$g.lo, res.raw$g.hi),
+                         pval = res.raw$pval,
+                         pvalBonf = res.raw$pvalBonf )
+  
+  
+  setwd(results.dir)
+  write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
+  
+  
+  ##### One-Off Stats for Paper: Main Estimates #####
+  update_result_csv( name = "mainY diff",
+                     value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  update_result_csv( name = "mainY diff lo",
+                     value = round( res.raw$lo[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  update_result_csv( name = "mainY diff hi",
+                     value = round( res.raw$hi[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  update_result_csv( name = "mainY diff pval",
+                     value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
+                     print = TRUE )
+  
+  update_result_csv( name = "mainY diff g",
+                     value = round( res.raw$g.est[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  update_result_csv( name = "mainY diff g lo",
+                     value = round( res.raw$g.lo[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  update_result_csv( name = "mainY diff g hi",
+                     value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
+  
+  
+  ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
+  update_result_csv( name = "Bonferroni alpha secY",
+                     value = round( alpha2, 4 ) )
+  
+  update_result_csv( name = "Bonferroni number secY",
+                     value = n.secY )
+  
+  update_result_csv( name = "Number secY pass Bonf",
+                     value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ) )
+  
+  # harmonic mean p-values by subsets of effect modifiers
+  update_result_csv( name = "HMP all secY",
+                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
+                                                 L = sum(res.raw$group == "secY") ), 2 ) )
+  
+  update_result_csv( name = "HMP food secY",
+                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
+                                                 L = sum(res.raw$group.specific == "secY food") ), 2 ) )
+  
+  update_result_csv( name = "HMP psych secY",
+                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
+                                                 L = sum(res.raw$group.specific == "secY psych") ), 2 ) )
+  
+}  # end "if (study == 1)"
 
-res.raw
-
-##### Save Both Raw and Cleaned-Up Results Tables #####
-
-# in order to have the unrounded values
-setwd(results.dir)
-write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
-
-# cleaned-up version
-# round it
-res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
-
-res.nice = data.frame( analysis = res.raw$analysis,
-                       est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
-                       g.est = stat_CI( res.raw$g.est, res.raw$g.lo, res.raw$g.hi),
-                       pval = res.raw$pval,
-                       pvalBonf = res.raw$pvalBonf )
-
-
-setwd(results.dir)
-write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
-
-
-##### One-Off Stats for Paper: Main Estimates #####
-update_result_csv( name = "mainY diff",
-                   value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
-
-update_result_csv( name = "mainY diff lo",
-                   value = round( res.raw$lo[ res.raw$analysis == "mainY MI"], 2 ) )
-
-update_result_csv( name = "mainY diff hi",
-                   value = round( res.raw$hi[ res.raw$analysis == "mainY MI"], 2 ) )
-
-update_result_csv( name = "mainY diff pval",
-                   value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
-                   print = TRUE )
-
-update_result_csv( name = "mainY diff g",
-                   value = round( res.raw$g.est[ res.raw$analysis == "mainY MI"], 2 ) )
-
-update_result_csv( name = "mainY diff g lo",
-                   value = round( res.raw$g.lo[ res.raw$analysis == "mainY MI"], 2 ) )
-
-update_result_csv( name = "mainY diff g hi",
-                   value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
-
-
-##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
-update_result_csv( name = "Bonferroni alpha secY",
-                   value = round( alpha2, 4 ) )
-
-update_result_csv( name = "Bonferroni number secY",
-                   value = n.secY )
-
-update_result_csv( name = "Number secY pass Bonf",
-                   value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ) )
-
-# harmonic mean p-values by subsets of effect modifiers
-update_result_csv( name = "HMP all secY",
-                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
-                                               L = sum(res.raw$group == "secY") ), 2 ) )
-
-update_result_csv( name = "HMP food secY",
-                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
-                                               L = sum(res.raw$group.specific == "secY food") ), 2 ) )
-
-update_result_csv( name = "HMP psych secY",
-                   value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
-                                               L = sum(res.raw$group.specific == "secY psych") ), 2 ) )
 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                               TABLE 3: EFFECT MODIFIERS
+#                               5. TABLE 3: EFFECT MODIFIERS
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # Effect modifiers: We will examine two-way interactions of intervention group assignment
@@ -653,38 +549,23 @@ update_result_csv( name = "HMP psych secY",
 # which the intervention might best be targeted.
 
 
+section = 5
 
 # look at effect modifiers as they'll be coded in analysis
 CreateTableOne( vars = effect.mods, 
                 data = dcc,
                 includeNA = TRUE)  # last only works for NA
 
-# # for Bonferroni
-# n.mods = length(effect.mods)
-# ( alpha3 = 0.05 / n.mods ) # Bonferroni-adjusted alpha
-# 
-# # names of coefficient estimates as they'll appear in the model
-# coefNames = c("treat:female",
-#               "treat:youngTRUE",
-#               "treat:collegeGradTRUE",
-#               "treat:cauc",
-#               "treat:party2b.Democrat",
-#               "treat:party2c.Republican",
-#               "treat:pDem")
-
 
 ##### Multiple Imputation Effect Modification Analysis #####
-
-# outcome depends on study
-#@actually not necessary becase study 2 won't use MI
-if ( study == 1 ) yName = "mainY"
-#if ( study == 2 ) yName = "intentionCont" #@spelled right?
 
 
 if ( exists("res.raw") ) rm(res.raw)
 
 
 if ( study == 1 ) {
+  
+  yName = "mainY"
   
   # for each imputation, fit one model with all effect modifiers
   # returns a list of lm objects, one for each imputation
@@ -697,7 +578,7 @@ if ( study == 1 ) {
     
   }  ) 
   
-  
+
   res.raw = mi_pool_all(.mi.res = mi.res)
   
   ##### Save Both Raw and Cleaned-Up Results Tables #####
@@ -759,14 +640,26 @@ if ( study == 1 ) {
   
   ##### One-Off Stats for Paper #####
   update_result_csv( name = "Bonferroni alpha mods",
-                     section = 0,
                      value = round( alpha3, 4 ),
                      print = TRUE )
   
   update_result_csv( name = "Number mods pass Bonf",
-                     section = 0,
-                     value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ),
-                     print = TRUE )
+                     value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ) )
+  
+  
+  # best combo of effect modifiers
+  varNames = row.names(res.raw)[ grepl( x = row.names(res.raw), pattern = ":" ) ]
+  # can't count coefficients for both political categories
+  varNames = varNames[ !varNames == "treat:party2b.Neutral"]
+  est.best = sum( res.raw$est[ row.names(res.raw) %in% varNames ] )
+  g.best = sum( res.raw$g.est[ row.names(res.raw) %in% varNames ] )
+  
+  update_result_csv( name = "Best effect mods est",
+                     value = round( est.best, 2 ) )
+  
+  
+  update_result_csv( name = "Best effect mods g",
+                     value = round( g.best, 2 ) )
   
   
 }  # end "if (study ==1 )"
@@ -813,11 +706,15 @@ res.nice = data.frame( coef = rowNames,
 setwd(results.dir)
 write.csv(res.nice, "effect_mods_cc_pretty.csv")
 
+# for pasting into Supplement
+library(xtable)
+print( xtable( res.nice), include.rownames = FALSE ) 
+
 
 
 ##### Sanity Check: Compare CC to MI #####
 
-if ( run.sanity == TRUE ) {
+if ( study == 1 & run.sanity == TRUE ) {
   setwd(results.dir)
   res.cc = read.csv("effect_mods_cc.csv")
   res.mi = read.csv("effect_mods_mi.csv")
@@ -962,7 +859,6 @@ if ( study == 1 ) {
 # 2013) if relevant methodological extensions, currently underway, are ready at the time of
 # analysis.
 
-#bm
 
 ##### Look at CC Data #####
 # look at relationship between instrument (treat) and X (video duration)
@@ -975,7 +871,6 @@ summary( lm( passCheck ~ treat, data = dcc) )
 
 my_ivreg(dat = dcc)
 
-#bm
 
 ##### IV for MI Datasets #####
 mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )

@@ -126,30 +126,37 @@ expect_equal( min(d1$videoMinQualtrics) > 20, TRUE )
 # 100 * round( summary( d1$onTaskMin / d1$totalTaskMin ), 2 )
 
 
+# merge in county-level politics data (already prepped by data_prep_counties.R)
+#  this just adds the variable pDem to the dataset
+setwd(county.prepped.data.dir)
+cn = read.csv("counties_prepped.csv")
+d1 = merge(d1, cn, by = "stateCounty")
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                      MAKE DERIVED VARIABLES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # recode CC dataset
-# bm
 d2 = make_derived_vars(d1)
 
 
 # make intention variables (not in make_derived_vars because it wasn't in Study 1)
 # continuous
+# signed so that positive intervention effects are good
 d2$intentionCont = dplyr::recode( d2$intention,
-                                  a.stronglyDecrease = -3,
-                                  b.decrease = -2,
-                                  c.somewhatDecrease = -1,
+                                  a.stronglyDecrease = 3,
+                                  b.decrease = 2,
+                                  c.somewhatDecrease = 1,
                                   d.noChange = 0,
-                                  e.somewhatIncrease = 1,
-                                  f.increase = 2,
-                                  g.stronglyIncrease = 3 ) 
+                                  e.somewhatIncrease = -1,
+                                  f.increase = -2,
+                                  g.stronglyIncrease = -3 ) 
 table(d2$intentionCont)
 
 # binary
-d2$intentionReduce = d2$intentionCont < 0
+d2$intentionReduce = d2$intentionCont > 0
 mean(d2$intentionReduce)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -161,71 +168,18 @@ d2$treat.pretty[ d2$treat == 0 ] = "Control"
 d2$treat.pretty[ d2$treat == 1 ] = "Documentary"
 
 
-################################ MERGE IN COUNTY POLITICS DATA ################################ 
-
-# merge in county-level politics data (already prepped by data_prep_counties.R)
-#  this just adds the variable pDem to the dataset
-setwd(county.prepped.data.dir)
-cn = read.csv("counties_prepped.csv")
-d2 = merge(d2, cn, by = "stateCounty")
-
-expect_equal( nrow(d2), 300 )
-
-
-
-
-################################ DROP AND REORGANIZE VARIABLES ################################ 
-
-
-# d1 = d1 %>% select( # analysis variables
-#   d1.ID,
-#   d1.date,
-#   treat,
-#   sex,
-#   age, 
-#   educ,
-#   cauc,
-#   hisp,
-#   black,
-#   midEast,
-#   #pacIsl,  # doesn't exist because no one used that option
-#   natAm, 
-#   SAsian,
-#   EAsian,
-#   SEAsian,
-#   party,
-#   pDem,
-#   state,
-#   county,
-#   stateCounty,
-#   
-#   importAnimals,
-#   importHealth,
-#   importEnviro,
-#   
-#   # non-analysis meta-data
-#   d1.totalQuestionnaireMin,
-#   d1.finishedQuestionnaire,
-#   d1.IPlat,
-#   d1.IPlong,
-#   # onTaskMin,
-#   # offTaskMin,
-#   d1.problemsBin,
-#   d1.problemsText )
-
-
 ################################ EXCLUDE SUBJECTS IF NEEDED ################################
 
 # review subjects' stated problems to see if any are serious enough to exclude
 setwd(results.dir)
 setwd("Sanity checks")
-write.csv( d1 %>% select(d1.ID, d1.problemsText) %>%
+write.csv( d2 %>% select(d1.problemsText) %>%
              filter( d1.problemsText != ""),
-           "d1_R1_problemsText_for_review.csv")
+           "study2_R1_problemsText_for_review.csv")
 # nothing serious
 
 # any repeated Prolific IDs?
-t = d1 %>% group_by(d1.ID) %>%
+t = d2 %>% group_by(pID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
 # no repeats

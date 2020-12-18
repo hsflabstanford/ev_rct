@@ -558,11 +558,11 @@ d2 = make_derived_vars(d)
 
 ##### Recode the Imputations #####
 # saves a new version of the imputation dataset (does not overwrite the old one)
-
+setwd(imputed.data.dir)
 for ( i in 1:M ) {
   imp = as.data.frame( imps[[i]] )
   
-  imp = make_derived_vars(imp)
+  imp = make_derived_vars(imp, printCorMat = FALSE)
   
   # overwrite the old one (prior to making derived variables)
   write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )

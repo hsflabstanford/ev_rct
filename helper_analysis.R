@@ -1,5 +1,5 @@
 
-
+########################### UTILITY FNs FOR INTERACTING WITH THE CODE ###########################
 
 # stands for "wipe results"
 wr = function(){
@@ -15,6 +15,126 @@ vr = function(){
   View( read.csv("stats_for_paper.csv") )
 }
 
+# read in everything needed for analyses 
+#  facilitates re-rerunning a single section in isolation
+# study: 1 or 2
+prelims = function(study, overwrite.res) {
+  
+  ##### Packages #####
+  library(dplyr)
+  library(readr)
+  library(tableone)
+  library(ggplot2)
+  library(tibble)
+  library(sandwich)
+  library(EValue)
+  library(metafor)
+  library(AER)
+  library(harmonicmeanp)
+  
+  study <<- study
+  
+  ##### Working Directories #####
+  
+  overleaf.dir <<- "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
+  # results dir not specific to this study (for saving results csv)
+  general.results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+ 
+  
+  if ( study == 1 ) {
+    prepped.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
+    results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
+    imputed.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
+  }
+  
+  if (study == 2) {
+    prepped.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 2"
+    results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 2"
+  }
+  
+
+  # res.raw will be a table of estimates for main outcome, secondaries, effect modifiers
+  # res.overleaf will be individual stats formatted for piping into Overleaf
+  if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
+  if ( overwrite.res == TRUE & exists("res.overleaf") ) rm(res.raw)
+  
+  
+  ##### Dataset #####
+  setwd(prepped.data.dir)
+  if (study == 1){
+    d <<- read.csv("prepped_merged_data.csv")
+    
+    # complete cases wrt mainY
+    # might still have sporadic missing data elsewhere
+    dcc = d %>% filter( !is.na(mainY) )
+    nrow(dcc)
+    
+    table(is.na(d$beef))
+  }
+  
+  if (study == 2) d <<- read.csv("prepped_data.csv"); dcc <<- d
+  
+  # read in imputations
+  if ( study == 1 ) {
+    #setwd(imputed.data.dir)
+    #load("imputed_datasets.RData")  # load "imps", the mids object
+    
+    # read in the imputations as a list rather than a mids object so that we can pool manually
+    setwd(imputed.data.dir)
+    to.read = list.files()[ grepl( pattern = "prepped", x = list.files() ) ]
+    imps <<- lapply( to.read,
+                   function(x) suppressMessages(read_csv(x)) )
+  }
+  
+  ##### Lists of Variables #####
+  meats <<- c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
+  animProds <<- c("dairy", "eggs")
+  decoy <<- c("refined", "beverages")
+  goodPlant <<- c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
+  allFoods <<- c(meats, animProds, decoy, goodPlant)
+  
+  foodVars <<- c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
+                names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
+  
+  # exploratory psych variables
+  psychY <<- c("importHealth",
+             "importEnviro",
+             "importAnimals",
+             "activ",
+             "spec",
+             "dom")
+  
+  # secondary food outcomes
+  secFoodY <<- c("totalMeat",
+               "totalAnimProd",
+               meats,
+               animProds,
+               "totalGood")
+  
+  # raw demographics, prior to collapsing categories for effect modification analyses
+  demo.raw <<- c("sex",
+               "age",
+               "educ",
+               "cauc",
+               "hisp",
+               "black",
+               "midEast",
+               "pacIsl",
+               "natAm",
+               "SAsian",
+               "EAsian",
+               "SEAsian",
+               "party",
+               "pDem")
+  
+  effect.mods <<- c("female",
+                  "young",
+                  "collegeGrad",
+                  "cauc",  
+                  "party2",
+                  "pDem2")
+  
+}
 
 
 ########################### FNs FOR STATISTICS ###########################
@@ -624,6 +744,23 @@ make_table_one = function(.d){
   
   return(t)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -132,18 +132,21 @@ make_derived_vars = function(.d,
   # recode secondary psych scales
   .d = recode_psych_scale( .d = .d,
                            scale = "spec",
-                           revCode = "X5_spec")
+                           revCode = "X5_spec",
+                           printCorMat = printCorMat )
 
   .d = recode_psych_scale( .d = .d,
                            scale = "activ",
-                           revCode = NA)
+                           revCode = NA,
+                           printCorMat = printCorMat)
   
   .d = recode_psych_scale( .d = .d,
                            scale = "dom",
                            revCode = c("X3_dom",
                                        "X4_dom",
                                        "X7_dom",
-                                       "X8_dom") )
+                                       "X8_dom"),
+                           printCorMat = printCorMat )
 
   # # recode compliance (finished watching video)
   # .d$finishedVid = (.d$video.time >= 20)
@@ -157,12 +160,12 @@ make_derived_vars = function(.d,
   
   .d$young = (.d$age <= 25)
   
-  # political party: group independents and "I don't know" people under "a.Neither" category
+  # political party: group Independents and "Other/I don't know" people under "neutral" category
   .d$party2 = NA
-  .d$party2[ .d$party == "Independent" ] = "a.Neither"
-  .d$party2[ .d$party == "Other/I don't know" ] = "a.Neither"
-  .d$party2[ .d$party == "Democrat" ] = "b.Democrat"
-  .d$party2[ .d$party == "Republican" ] = "c.Republican"
+  .d$party2[ .d$party == "Independent" ] = "b.Neutral"
+  .d$party2[ .d$party == "Other/I don't know" ] = "b.Neutral"
+  .d$party2[ .d$party == "Democrat" ] = "c.Democrat"
+  .d$party2[ .d$party == "Republican" ] = "a.Republican"
   
   # pDem in terms of a 10-percentage point increase in Democrats
   .d$pDem2 = .d$pDem/0.1
@@ -171,12 +174,15 @@ make_derived_vars = function(.d,
   
   
   ##### Misc #####
-  # turn Qualtrics completion times into date objects
-  .d$w1.date = dateify(.d$w1.date)
-  .d$w2.date = dateify(.d$w2.date)
-  
-  # calculate follow-up time for each subject
-  .d$fuDays = .d$w2.date - .d$w1.date
+  # these vars only exist for study 1
+  if ( "w1.date" %in% names(.d) ) {
+    # turn Qualtrics completion times into date objects
+    .d$w1.date = dateify(.d$w1.date)
+    .d$w2.date = dateify(.d$w2.date)
+    
+    # calculate follow-up time for each subject
+    .d$fuDays = .d$w2.date - .d$w1.date
+  }
 
   return(.d)
 }

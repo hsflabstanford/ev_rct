@@ -3,6 +3,9 @@
 #  - Each section is self-contained. You can start from anywhere by first running prelims() and then 
 #   running just that section.
 
+# bm: This code still needs more sanity checks. Data prep already has its own sanity checks
+#  in a separate file. 
+
 rm( list = ls() )
 
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"

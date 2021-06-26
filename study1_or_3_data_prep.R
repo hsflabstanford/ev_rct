@@ -8,16 +8,8 @@ rm(list=ls())
 #                                      PRELIMINARIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-##### Packages #####
-library(dplyr)
-library(mice)
-library(readr)
-library(tableone)
-library(testthat)
-library(qdapTools)
-library(Amelia)
-library(tableone)
 
+##### Set Parameters Here #####
 # overwrite old results?
 overwrite.res = TRUE
 
@@ -28,21 +20,40 @@ run.sanity = FALSE
 # from scratch takes about an hour
 impute.from.scratch = FALSE
 # number of imputations
-M = 10
+M = 10 
+
+# which study's data to prep?
+# must be 1 or 3
+study = 3
+# for making strings
+if ( study %in% c(1,3) ) study.string = paste("Study", study, sep = " ") else stop("Invalid study spec.")
+
+
+##### Packages #####
+library(dplyr)
+library(mice)
+library(readr)
+library(tableone)
+library(testthat)
+library(qdapTools)
+library(Amelia)
+library(tableone)
+library(here)
 
 
 ##### Working Directories #####
-imputed.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
+imputed.data.dir = here( paste("Data/Prepped/", study.string, "/Saved imputations",
+                               sep = "") )
 
-raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Raw/Study 1"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
+raw.data.dir = here( paste("Data/Raw/", study.string, sep = "" ) )
+prepped.data.dir = here( paste("Data/Prepped/", study.string, sep = "" ) )
 # this script will save some results of sanity checks
-results.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
+results.dir = here( paste("Results from R/", study.string, sep = "" ) )
 
 # county political affiliation data
-county.prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped"
+county.prepped.data.dir = here("Data/Prepped")
 
-code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
+code.dir = here("Code (git)")
 
 setwd(code.dir)
 source("helper_prep.R")
@@ -68,6 +79,9 @@ demoVars = c( "sex",
               "state",
               "covid" )
 
+# didn't have this variable in Study 3
+if ( study == 3 ) demoVars = demoVars[ !demoVars == "covid" ]
+
 meats = c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
 animProds = c("dairy", "eggs")
 decoy = c("refined", "beverages")
@@ -85,22 +99,38 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 #  time strings
 # and I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
-w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
+if ( study == 1 ){
+  w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
+} else if ( study == 3 ) {
+  w1 = read.csv("study3_wave1_R1_from_qualtrics_noheader.csv", header = TRUE)
+}
 
 # people who closed survey after starting
 table(w1$Finished)
-# all finished
 
-expect_equal( nrow(w1), 650 )
-# setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Fake simulated data")
-# w1 = read.csv("raw_FAKE_data.csv")
-
+if ( study == 1 ) expect_equal( nrow(w1), 650 )
+if ( study == 3 ) expect_equal( nrow(w1), 797 )
 
 ################################ RENAME AND RECODE VARIABLES ################################ 
 
 # rename variables
-w1 = w1 %>% rename( w1.ID = PROLIFIC_PID,
-                    w1.date = StartDate,
+
+if ( study == 1 ) w1 = w1 %>% rename( w1.ID = PROLIFIC_PID )
+if ( study == 3 ) {
+  w1 = w1 %>% rename( w1.ID = ID,
+                      # order of foods here can be confirmed using the "withheader" raw dataset's
+                      #  second header row:
+                      "pledgeChicken" = pledge_1,
+                      "pledgeFish" = pledge_2,
+                      "pledgePork" = pledge_3,
+                      "pledgeBeef"  = pledge_4,
+                      "pledgeOtherMeat" = pledge_5,
+                      "pledgeEggs" = pledge_6,
+                      "pledgeDairy" = pledge_7,
+                      "pledgeStrategiesFreeText" = pledgeStrategies_6_TEXT )
+}
+
+w1 = w1 %>% rename( w1.date = StartDate,
                     w1.totalQuestionnaireMin = Duration..in.seconds./60,
                     w1.finishedQuestionnaire = Finished,
                     w1.IPlat = LocationLatitude,
@@ -115,34 +145,45 @@ w1 = w1 %>% rename( w1.ID = PROLIFIC_PID,
 w1 = recode_checkboxes(.d = w1, var = "race")
 
 # combined state-country variable for later merging joy
+# in Study 3, it was possible for people to have a missing stateCounty (unintentionally on our part)
+if ( study == 3 ){
+  w1$state[ w1$state == "" ] = NA
+  w1$county[ w1$county == "" ] = NA
+}
 w1$stateCounty = paste( w1$state, w1$county, sep = " " )
+w1$stateCounty[ is.na(w1$state) | is.na(w1$county) ] = NA
+
 
 # passing manipulation check
 w1$passCheck = (w1$videoContent == "The ways we raise animals for human consumption causes the animals to suffer.")
 
 
 ##### Video Time Variables (TaskMaster and Qualtrics) #####
-# combine video time variables (1 for each treatment)
-w1$videoMinQualtrics = w1$videoTime_Page.Submit  # still in seconds
-w1$videoMinQualtrics[ is.na(w1$videoTime_Page.Submit) ] = w1$videoTime_Page.Submit.1[ is.na(w1$videoTime_Page.Submit) ]
-# convert to minutes
-w1$videoMinQualtrics = w1$videoMinQualtrics / 60
-# sanity check
-expect_equal( any(is.na(w1$videoMinQualtrics)), FALSE )
 
-# TaskMaster data about on-task time 
-w1$onTaskMin = w1$Page_3_TimeOnPage/60
-w1$offTaskMin = w1$Page_3_TimeOffPage/60
-w1$totalTaskMin = w1$onTaskMin + w1$offTaskMin
-# sanity check: should generally be similar
-# but could potentially differ if, e.g., subject closes tab and starts it up again
-table( abs( w1$totalTaskMin - w1$videoMinQualtrics ) < .01 )
-w1$finishedVid = w1$onTaskMin >= 20
-
-# percentage of the 20 minutes for which people are on task
-100 * round( summary( w1$onTaskMin / 20 ), 2 )
-# percentage of total time on the page for which people are on task
-100 * round( summary( w1$onTaskMin / w1$totalTaskMin ), 2 )
+if ( study == 1 ) {
+  # combine video time variables (1 for each treatment)
+  w1$videoMinQualtrics = w1$videoTime_Page.Submit  # still in seconds
+  w1$videoMinQualtrics[ is.na(w1$videoTime_Page.Submit) ] = w1$videoTime_Page.Submit.1[ is.na(w1$videoTime_Page.Submit) ]
+  # convert to minutes
+  w1$videoMinQualtrics = w1$videoMinQualtrics / 60
+  # sanity check
+  expect_equal( any(is.na(w1$videoMinQualtrics)), FALSE )
+  
+  # TaskMaster data about on-task time 
+  w1$onTaskMin = w1$Page_3_TimeOnPage/60
+  w1$offTaskMin = w1$Page_3_TimeOffPage/60
+  w1$totalTaskMin = w1$onTaskMin + w1$offTaskMin
+  # sanity check: should generally be similar
+  # but could potentially differ if, e.g., subject closes tab and starts it up again
+  table( abs( w1$totalTaskMin - w1$videoMinQualtrics ) < .01 )
+  w1$finishedVid = w1$onTaskMin >= 20
+  
+  # percentage of the 20 minutes for which people are on task
+  100 * round( summary( w1$onTaskMin / 20 ), 2 )
+  # percentage of total time on the page for which people are on task
+  100 * round( summary( w1$onTaskMin / w1$totalTaskMin ), 2 )
+  
+}
 
 
 ################################ MERGE IN COUNTY POLITICS DATA ################################ 
@@ -151,49 +192,113 @@ w1$finishedVid = w1$onTaskMin >= 20
 #  this just adds the variable pDem to the dataset
 setwd(county.prepped.data.dir)
 cn = read.csv("counties_prepped.csv")
-w1 = merge(w1, cn, by = "stateCounty")
 
-expect_equal( nrow(w1), 650 )
+w1 = left_join( w1, cn, 
+               by = "stateCounty" )
+
+if ( study == 1 ) expect_equal( nrow(w1), 650 )
+if ( study == 3 ) expect_equal( nrow(w1), 797 )
+
 
 
 ################################ DROP AND REORGANIZE VARIABLES ################################ 
 
-w1 = w1 %>% select( # analysis variables
-  w1.ID,
-  w1.date,
-  treat,
-  sex,
-  age, 
-  educ,
-  cauc,
-  hisp,
-  black,
-  midEast,
-  pacIsl,
-  natAm, 
-  SAsian,
-  EAsian,
-  SEAsian,
-  party,
-  pDem,
-  state,
-  county,
-  stateCounty,
-  passCheck,
-  
-  # related to analysis variables but not directly used 
-  #  in analysis
-  videoContent,
-  
-  # non-analysis meta-data
-  w1.totalQuestionnaireMin,
-  w1.finishedQuestionnaire,
-  w1.IPlat,
-  w1.IPlong,
-  onTaskMin,
-  offTaskMin,
-  w1.problemsBin,
-  w1.problemsText )
+if ( study == 1 ) {
+  w1 = w1 %>% select( # analysis variables
+    w1.ID,
+    w1.date,
+    treat,
+    sex,
+    age, 
+    educ,
+    cauc,
+    hisp,
+    black,
+    midEast,
+    pacIsl,
+    natAm, 
+    SAsian,
+    EAsian,
+    SEAsian,
+    party,
+    pDem,
+    state,
+    county,
+    stateCounty,
+    passCheck,
+    
+    # related to analysis variables but not directly used 
+    #  in analysis
+    videoContent,
+    
+    # non-analysis meta-data
+    w1.totalQuestionnaireMin,
+    w1.finishedQuestionnaire,
+    w1.IPlat,
+    w1.IPlong,
+    onTaskMin,
+    offTaskMin,
+    w1.problemsBin,
+    w1.problemsText )
+}
+
+
+if ( study == 3 ) {
+  w1 = w1 %>% select( # analysis variables
+    w1.ID,
+    w1.date,
+    treat,
+    sex,
+    age, 
+    educ,
+    highEduc,
+    cauc,
+    hisp,
+    black,
+    midEast,
+    pacIsl,
+    natAm, 
+    SAsian,
+    EAsian,
+    SEAsian,
+    party,
+    pDem,
+    state,
+    county,
+    stateCounty,
+    targetDemographics,
+    passCheck,
+    
+    # related to analysis variables but not directly used 
+    #  in analysis
+    videoContent,
+    healthFreeText,
+    enviroFreeText,
+    animalFreeText,
+    
+    pledgeChicken,
+    pledgeFish,
+    pledgePork,
+    pledgeBeef,
+    pledgeOtherMeat,
+    pledgeEggs,
+    pledgeDairy,
+    pledgeDateGoal,
+    pledgeStrategies,
+    pledgeStrategiesFreeText,
+    madeReducePledge,
+    madeEliminatePledge,
+    
+    # non-analysis meta-data
+    w1.totalQuestionnaireMin,
+    w1.finishedQuestionnaire,
+    w1.IPlat,
+    w1.IPlong,
+
+    w1.problemsBin,
+    w1.problemsText )
+}
+
 
 
 ################################ EXCLUDE SUBJECTS IF NEEDED ################################
@@ -204,7 +309,7 @@ setwd("Sanity checks after W1")
 write.csv( w1 %>% select(w1.ID, w1.problemsText) %>%
              filter( w1.problemsText != ""),
            "w1_R1_problemsText_for_review.csv")
-# nothing requiring exclusion
+# Study 1: nothing requiring exclusion
 #  mostly just confusion from control subjects about why none of manipulation
 # check items matched the control video content
 
@@ -212,14 +317,21 @@ write.csv( w1 %>% select(w1.ID, w1.problemsText) %>%
 t = w1 %>% group_by(w1.ID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
-# **one person somehow did it twice: note this in manuscript
-# this is the only exclusion for wave 1
+
+# **Study 1: one person somehow did it twice; note this in manuscript
+# this is the only exclusion for W1
+# Study 2: same; one person did it twice
 dupID = w1$w1.ID[ duplicated(w1$w1.ID) ]
 
 # keep only this person's first submission
 w1 = w1 %>% filter( !duplicated(w1.ID) )
-expect_equal( nrow(w1), 649 )
 
+#@KEEP ONLY SUBJECTS WHO WERE RANDOMIZED
+# added this AFTER study 1, so could affect its sample size
+w1 = w1 %>% filter( !is.na(treat) )
+
+if ( study == 1 ) expect_equal( nrow(w1), 649 )
+if ( study == 3 ) expect_equal( nrow(w1), 665 )
 
 ################################ SAVE PREPPED W1 DATA ################################ 
 
@@ -235,9 +347,22 @@ if ( overwrite.prepped.data == TRUE ) {
 setwd(prepped.data.dir)
 w1 = read.csv("prepped_data_W1_R1.csv")
 
+
 if ( run.sanity == TRUE ){
   # quick look at demographics
-  temp = w1 %>% select( c("treat", demoVars, "passCheck", "onTaskMin") )
+  if ( study == 1 ) {
+    temp = w1 %>% select( c("treat",
+                            demoVars,
+                            "passCheck",
+                            "onTaskMin") )
+  }
+  
+  if ( study == 3 ) {
+    temp = w1 %>% select( c("treat",
+                            demoVars,
+                            "passCheck") )
+  }
+
   t = CreateTableOne(data = temp, strata = "treat")
   setwd(results.dir)
   setwd("Sanity checks after W1")
@@ -302,19 +427,25 @@ if ( run.sanity == TRUE ){
 ##### Read in Wave 2 Data #####
 # I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
-w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+if ( study == 1 ) w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+if ( study == 3 ) w2 = read.csv( "study3_wave2_R1_from_qualtrics_noheader.csv", header = TRUE)
 
 # a couple people started the survey, but then did not finish
 table(w2$Finished)
-w2 = w2[ w2$Finished == TRUE, ]
+#@ REVISIT THIS DISCREPANT CHOICE OF HANDLING MISSING DATA:
+# FOR STUDY 3, WILL IMPUTE FOR PEOPLE WHO STARTED BUT DIDN'T FINISH
+# PROBABLY BEST TO DO THIS FOR STUDY 1 AS WELL
+if ( study == 1 ) w2 = w2[ w2$Finished == TRUE, ]
 
 nrow(w2)  # number of completers
-nrow(w2) / 649  # completion rate
+nrow(w2) / nrow(w1)  # completion rate vs. n from wave 1
 
 
 # rename wave 2 variables
-w2 = w2 %>% rename( w2.ID = PROLIFIC_PID,
-                    w2.date = StartDate,
+if ( study == 1 ) w2 = w2 %>% rename( w2.ID = PROLIFIC_PID )
+if ( study == 3 ) w2 = w2 %>% rename( w2.ID = ID )
+
+w2 = w2 %>% rename( w2.date = StartDate,
                     w2.totalQuestionnaireMin = Duration..in.seconds./60,
                     w2.finishedQuestionnaire = Finished,
                     w2.IPlat = LocationLatitude,
@@ -350,10 +481,26 @@ write.csv( w2 %>% select(w2.ID, w2.problemsText) %>%
            "w2_R2_problemsText_for_review.csv")
 
 
-# any repeated Prolific IDs?
+# any repeated IDs?
 t = w2 %>% group_by(w2.ID) %>%
   summarise(n())
 table( t$`n()` )  # responses per pID
+
+# if so, keep only each person's first submission
+w2 = w2 %>% filter( !duplicated(w2.ID) )
+
+# sanity check
+# were all wave 2 subjects also in wave 1?
+# in Study 1, it should be impossible to have an ID in W2 that doesn't
+#  appear in W1...
+if ( study == 1 ) expect_equal( all( w2$w2.ID %in% w1$w1.ID == TRUE ), TRUE )
+# ...but in Study 3, they could have mis-entered their ID code
+( nBadIDs = sum( !w2$w2.ID %in% w1$w1.ID ) )
+# exclude these
+w2 = w2[ w2$w2.ID %in% w1$w1.ID, ]
+
+
+nrow(w2)
 
 
 ################################ MERGE WAVES ################################
@@ -364,13 +511,9 @@ w1 = read.csv( "prepped_data_W1_R1.csv", header = TRUE)
 
 # merge waves
 d = merge( w1, w2, by.x = "w1.ID", by.y = "w2.ID", all.x = TRUE)
-expect_equal( nrow(d), 649 )
 
-# sanity check
-# were all wave 2 subjects also in wave 1?
-# should all be true
-expect_equal( all( w2$w2.ID %in% w1$w1.ID == TRUE ), TRUE )
-
+if ( study == 1 ) expect_equal( nrow(d), 649 )
+if ( study == 3 ) expect_equal( nrow(d), 665 )
 
 # table(is.na(w2$beef_Freq))
 # table(is.na(d$beef_Freq))
@@ -379,37 +522,82 @@ expect_equal( all( w2$w2.ID %in% w1$w1.ID == TRUE ), TRUE )
 
 ##### Recode Character Vars as Factors #####
 # this is needed to avoid "constant" problem in mice's loggedEvents
-sum(sapply(d, is.character))  # check number of character vars
+sum(sapply(d, is.character))  # number of character vars
 d = d %>% mutate_if(sapply(d, is.character), as.factor)
 sum(sapply(d, is.character))  # check again; should be 0
 
-# drop variables that shouldn't be in imputation model
+# drop variables that aren't useful for analysis
+#@RETURN TO THIS; I DON'T THINK WE ACTUALLY NEED TO DROP NON-IMPUTATION VARS HERE
+#  BECAUSE WE SPECIFY LATER
 d$ID = d$w1.ID  # have just one ID variable
-d = d %>% select( -c("X",
-                     "w1.IPlat",
-                     "w1.IPlong",
-                     "EndDate",
-                     "Progress",
-                     "RecordedDate",
-                     "ResponseId",
-                     "RecipientLastName",
-                     "RecipientFirstName",
-                     "RecipientEmail",
-                     "ExternalReference",
-                     "Status",
-                     "w2.IPlat",
-                     "w2.IPlong",
-                     "DistributionChannel",
-                     "UserLanguage",
-                     "IPAddress",
-                     "pID",
-                     "w1.problemsBin",
-                     "w1.problemsText",
-                     "w2.problemsBin",
-                     "w2.problemsText",
-                     "w1.finishedQuestionnaire",
-                     "w2.finishedQuestionnaire",
-                     "w1.ID") )
+
+if ( study == 1 ) {
+  d = d %>% select( -c("X",
+                       "w1.IPlat",
+                       "w1.IPlong",
+                       "EndDate",
+                       "Progress",
+                       "RecordedDate",
+                       "ResponseId",
+                       "RecipientLastName",
+                       "RecipientFirstName",
+                       "RecipientEmail",
+                       "ExternalReference",
+                       "Status",
+                       "w2.IPlat",
+                       "w2.IPlong",
+                       "DistributionChannel",
+                       "UserLanguage",
+                       "IPAddress",
+                       "pID",
+                       "w1.problemsBin",
+                       "w1.problemsText",
+                       "w2.problemsBin",
+                       "w2.problemsText",
+                       "w1.finishedQuestionnaire",
+                       "w2.finishedQuestionnaire",
+                       "w1.ID") )
+}
+
+
+if ( study == 3 ) {
+  d = d %>% select( -c("X",
+                       "w1.IPlat",
+                       "w1.IPlong",
+                       "w1.date",
+                       "w2.date",
+                       "EndDate",
+                       "Progress",
+                       "RecordedDate",
+                       "ResponseId",
+                       "RecipientLastName",
+                       "RecipientFirstName",
+                       "RecipientEmail",
+                       "ExternalReference",
+                       "Status",
+                       "w2.IPlat",
+                       "w2.IPlong",
+                       "DistributionChannel",
+                       "UserLanguage",
+                       "IPAddress",
+                       "ID",
+                       "w1.problemsBin",
+                       "w1.problemsText",
+                       "w2.problemsBin",
+                       "w2.problemsText",
+                       "w1.finishedQuestionnaire",
+                       "w2.finishedQuestionnaire",
+                       "w1.ID",
+                       # "pledgeDateGoal",
+                       # "pledgeStrategiesFreeText",
+                       # "w1.totalQuestionnaireMin",
+                       # "w2.totalQuestionnaireMin",
+                       # "stateCounty",  # redundant with 
+                       "wantsRaffle",  #@IULTIMATELY NEED TO DE-ID THE DATASET EARLIER IN WORKFLOW
+                       "raffleEmail") )
+}
+
+
 
 # check the remaining variables
 names(d)
@@ -431,13 +619,13 @@ write_interm(d, "d_intermediate_1.csv")
 # an actual mistake in data collection, though we may conduct secondary analyses excluding
 # outlying subjects.
 
-# bm: redo imps here
+# redo imps here
 d = read_interm("d_intermediate_1.csv")
 
 # look at missingness patterns
 Pmiss = apply( d, 2, function(x) mean( is.na(x) ) )
 sort(Pmiss)
-# makes sense:
+# makes sense; for Study 1:
 #  - all baseline variables have 0 missingness
 #  - F/U variables usually have exactly 11.6% missingness because that's the attrition rate
 #  - except for the "ounces" variables, which are additionally missing for subjects who said they 
@@ -481,8 +669,10 @@ if ( impute.from.scratch == TRUE ) {
   myPred = ini$pred
   myPred[myPred == 1] = 0
   # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
-  myPred[ names(d) %in% w2Vars, names(d) %in% c(impModelVars, w2Vars) ] = 1
+  myPred[ names(d) %in% w2Vars,
+          names(d) %in% c(impModelVars, w2Vars) ] = 1
   
+  #BM: need to fix this...UGH!!!
   imps = mice( d,
                m=M,  
                predictorMatrix = myPred,

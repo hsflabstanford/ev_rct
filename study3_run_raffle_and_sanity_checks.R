@@ -115,7 +115,8 @@ w2 = w2[ !duplicated(w2$ID), ]
 # keep all subjects in w1 who were RANDOMIZED
 #  and merge in their response data
 d = left_join( w1[ !is.na(w1$treat), ],
-               w2, by = "ID" )
+               w2,
+               by = "ID" )
 
 # total n to be analyzed: 666
 nrow(d)

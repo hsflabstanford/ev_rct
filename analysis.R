@@ -1,10 +1,14 @@
 
+# Analyzes either study 2 or study 3 depending on the argument to prelims()
+#  specified below. 
+
 # Meta-notes about this script:
 #  - Each section is self-contained. You can start from anywhere by first running prelims() and then 
 #   running just that section.
 
 # bm: This code still needs more sanity checks. Data prep already has its own sanity checks
 #  in a separate file. 
+
 
 rm( list = ls() )
 
@@ -144,6 +148,21 @@ if ( study == 1 ){
   
   
   # COVID effect on choices
+  # @something is wrong with these...they don't add up to 100:
+  # prop.table(table(d$covid))
+  
+  # what??
+  mean(d$covid %in% c( "a.muchLess", "b.somewhatLess", "c.slightlyLess"),na.rm=T)
+  
+  mean(d$covid == "a.muchLess", na.rm=T) + mean(d$covid == "b.somewhatLess", na.rm=T) + mean(d$covid == "c.slightlyLess", na.rm=T)
+  
+  ind1 = (d$covid == "a.muchLess") + (d$covid == "b.somewhatLess") + (d$covid == "c.slightlyLess")
+  mean(ind1,na.rm=T)
+  
+  ind2 = d$covid %in% c("a.muchLess", "b.somewhatLess", "c.slightlyLess")
+  mean(ind2, na.rm=T)
+  # WTF????? 
+  
   table(d$covid)
   update_result_csv( name = "Perc COVID less choice",
                      value = round( 100 * mean(d$covid %in% c("a.muchLess",

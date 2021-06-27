@@ -607,7 +607,7 @@ names(d)
 write_interm(d, "d_intermediate_1.csv")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                    MULTIPLE IMPUTATION
+#                              MULTIPLE IMPUTATION FOR STUDIES 1-2
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 # All primary analyses will be conducted on an intention-to-treat basis, such that all enrolled
@@ -676,7 +676,7 @@ impModelVars = w1Vars[ !w1Vars == "state" ]
 
 
 
-if ( impute.from.scratch == TRUE ) {
+if ( impute.from.scratch == TRUE & study != 3 ) {
   
   ##### Generate Imputations #####
   library(mice)
@@ -769,15 +769,19 @@ if ( impute.from.scratch == TRUE ) {
 
 
 ##### Read in Saved Imputations #####
-# we're doing this even if impute.from.scratch=TRUE to have same data format
-# i.e., a list of imputed datasets instead of a mids object
-setwd(imputed.data.dir)
 
-# avoid trying to recode other files in that directory
-toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
+if ( study != 3 ) {
+  # we're doing this even if impute.from.scratch=TRUE to have same data format
+  # i.e., a list of imputed datasets instead of a mids object
+  setwd(imputed.data.dir)
+  
+  # avoid trying to recode other files in that directory
+  toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
+  
+  imps = lapply( toRecode,
+                 function(x) suppressMessages(read_csv(x)) )
+}
 
-imps = lapply( toRecode,
-               function(x) suppressMessages(read_csv(x)) )
 
 
 
@@ -811,119 +815,128 @@ temp = d2[ ,freqVars ]
 d2$numFoodFreqMissing = rowSums( is.na(temp) )
 expect_equal( d2$numFoodFreqMissing > 0, is.na(d2$mainY) )
 
-####@ ~~~~ EXPERIMENT WITH DOING MI AFTER MAKING DERIVED VARS
-library(mice)
-ini = mice(d2, m=1, maxit = 0 )
 
-
-# check default methods
-# all PMM, as desired
-ini$method
-
-# variables to be imputed: those measured at follow-up
-# these are the only vars that can have missing data
-# lists of variables from helper_analysis.R::prelims()
-meats <<- c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
-animProds <<- c("dairy", "eggs")
-decoy <<- c("refined", "beverages")
-goodPlant <<- c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
-allFoods <<- c(meats, animProds, decoy, goodPlant)
-
-foodVars <<- c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
-                names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
-
-# exploratory psych variables
-psychY <<- c("importHealth",
-             "importEnviro",
-             "importAnimals",
-             "activ",
-             "spec",
-             "dom")
-
-# secondary food outcomes
-secFoodY <<- c("totalMeat",
-               "totalAnimProd",
-               meats,
-               animProds,
-               "totalGood")
-toAnalyze = c("mainY",
-              secFoodY,
-              psychY )
-
-
-
-
-# variables to be used in imputation model:
-# "real" variables measured at baseline and the F/U variables
-w1Vars = c( "treat",
-            demoVars )
-# state has too many categories to work well as predictor
-impModelVars = w1Vars[ !w1Vars == "state" ]
-
-# w2Vars = "mainY"
-# impModelVars = "treat"
-
-# make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
-#  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
-myPred = ini$pred
-myPred[myPred == 1] = 0
-# impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
-myPred[ names(d2) %in% toAnalyze, # vars to be imputed
-        names(d2) %in% c(impModelVars, toAnalyze) ] = 1  # ...and vars in the imputation model
-diag(myPred) = 0  # but a variable can't impute itself
-sum(myPred)
-
-
-myMethod = ini$method
-myMethod[ !names(myMethod) %in% toAnalyze ] = ""
-table(myMethod)
-
-# imputing secfoodY variables seem to cause issues
-imps = mice( d2,
-             m=M,  
-             predictorMatrix = myPred,
-             method = myMethod,
-             seed = 451)
-
-imps$loggedEvents$dep
-#bm
-
-# make sure there is no missing data in the imputations
-any.missing = apply( complete(imps,1)[ ,toAnalyze],
-                     2,
-                     function(x) any(is.na(x)) ) # should be FALSE
-if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
-
-cbind(d2$chicken, complete(imps,1)$chicken)
-
-
-##### Save Imputations for Reproducibility #####
-if ( overwrite.res == TRUE ) {
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                               MULTIPLE IMPUTATION FOR STUDY 3 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# for Study 3, the MI models weren't converging when we tried to impute BEFORE
+# making derived variables
+# so instead do it after
+#**this still creates logged events: note this in manuscript
+if ( impute.from.scratch == TRUE & study == 3 ) {
+  ini = mice(d2, m=1, maxit = 0 )
   
-  # save imputations for reproducibility
-  setwd(imputed.data.dir)
-  save( imps, file = "imputed_datasets.RData" )
   
-  for (i in 1:M) {
-    write.csv( complete(imps,i),
-               paste("imputed_dataset_", i, ".csv", sep="") )
+  # check default methods
+  # all PMM, as desired
+  ini$method
+  
+  # variables to be imputed: those measured at follow-up
+  # these are the only vars that can have missing data
+  # lists of variables from helper_analysis.R::prelims()
+  meats <<- c("chicken", "turkey", "fish", "pork", "beef", "otherMeat")
+  animProds <<- c("dairy", "eggs")
+  decoy <<- c("refined", "beverages")
+  goodPlant <<- c("leafyVeg", "otherVeg", "fruit", "wholeGrain", "legumes")
+  allFoods <<- c(meats, animProds, decoy, goodPlant)
+  
+  foodVars <<- c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
+                  names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
+  
+  # exploratory psych variables
+  psychY <<- c("importHealth",
+               "importEnviro",
+               "importAnimals",
+               "activ",
+               "spec",
+               "dom")
+  
+  # secondary food outcomes
+  secFoodY <<- c("totalMeat",
+                 "totalAnimProd",
+                 meats,
+                 animProds,
+                 "totalGood")
+  toAnalyze = c("mainY",
+                secFoodY,
+                psychY )
+  
+  # variables to be used in imputation model:
+  # "real" variables measured at baseline and the F/U variables
+  w1Vars = c( "treat",
+              demoVars )
+  # state has too many categories to work well as predictor
+  impModelVars = w1Vars[ !w1Vars == "state" ]
+  
+  # w2Vars = "mainY"
+  # impModelVars = "treat"
+  
+  # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
+  #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
+  myPred = ini$pred
+  myPred[myPred == 1] = 0
+  # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
+  myPred[ names(d2) %in% toAnalyze, # vars to be imputed
+          names(d2) %in% c(impModelVars, toAnalyze) ] = 1  # ...and vars in the imputation model
+  diag(myPred) = 0  # but a variable can't impute itself
+  sum(myPred)
+  
+  
+  myMethod = ini$method
+  myMethod[ !names(myMethod) %in% toAnalyze ] = ""
+  table(myMethod)
+  
+  # imputing secfoodY variables seem to cause issues
+  imps = mice( d2,
+               m=M,  
+               predictorMatrix = myPred,
+               method = myMethod,
+               seed = 451)
+  
+  imps$loggedEvents$dep
+  
+  # make sure there is no missing data in the imputations
+  any.missing = apply( complete(imps,1)[ ,toAnalyze],
+                       2,
+                       function(x) any(is.na(x)) ) # should be FALSE
+  if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
+  
+  cbind(d2$chicken, complete(imps,1)$chicken)
+  
+  
+  ##### Save Imputations for Reproducibility #####
+  if ( overwrite.res == TRUE ) {
+    
+    # save imputations for reproducibility
+    setwd(imputed.data.dir)
+    save( imps, file = "imputed_datasets.RData" )
+    
+    for (i in 1:M) {
+      write.csv( complete(imps,i),
+                 paste("imputed_dataset_prepped", i, ".csv", sep="") )
     }
+  }
+  
 }
 
-####@ ~~~~ END MICE EXPERIMENT
 
 
 ##### Recode the Imputations #####
-# saves a new version of the imputation dataset (does not overwrite the old one)
-setwd(imputed.data.dir)
-for ( i in 1:M ) {
-  imp = as.data.frame( imps[[i]] )
-  
-  imp = make_derived_vars(imp, printCorMat = FALSE)
-  
-  # overwrite the old one (prior to making derived variables)
-  write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
+
+# not needed for Study 3, for which we imputed derived vars directly
+if ( study != 3 ) {
+  # saves a new version of the imputation dataset (does not overwrite the old one)
+  setwd(imputed.data.dir)
+  for ( i in 1:M ) {
+    imp = as.data.frame( imps[[i]] )
+    
+    imp = make_derived_vars(imp, printCorMat = FALSE)
+    
+    # overwrite the old one (prior to making derived variables)
+    write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
+  }
 }
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

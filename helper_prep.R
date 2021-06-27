@@ -172,6 +172,9 @@ make_derived_vars = function(.d,
   
   .d$collegeGrad = .d$educ %in% c("c.2yr", "d.4yr", "e.post")
   
+  # only for Study 3: the simplified joint effect modifier
+  if ( study == 3 ) .d$targetDemoSimple = (.d$party == "Democrat") & (.d$highEduc == TRUE)
+  
   
   ##### Misc #####
   # these vars only exist for study 1

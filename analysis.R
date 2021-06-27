@@ -12,13 +12,15 @@
 
 rm( list = ls() )
 
-code.dir = "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Code (git)"
+library(here)
+
+code.dir = here("Code (git)")
 setwd(code.dir)
 source("helper_analysis.R")
 
 # makes a bunch of global variables for different directories, lists of variables, etc.,
 #  and reads in datasets
-prelims(study = 1, overwrite.res = TRUE)
+prelims(study = 3, overwrite.res = TRUE)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   1. SANITY CHECKS
@@ -228,14 +230,61 @@ if ( study == 2 ){
 
 section = 3
 
+
+# ~~~ QUICK LOOK AT MAIN RESULTS FOR STUDY 3 -----------
+#bm: Look at missingness by fitting missing propensity model
+# CC analysis, all subjects
+# estimated treatment effect is about 5 oz in the desired direction
+summary( lm(mainY ~ treat + targetDemographics,
+            data = d) )
+# and among subset with simplified target demographics
+# also control for "young" because was used in randomization but isn't part of targetDemoSimple
+# not any better in this subset of 126 subjects
+summary( lm(mainY ~ treat + young,
+            data = d[ d$targetDemoSimple == TRUE, ] ) )
+
 # for Study 1, these are just a sensitivity analysis and sanity check
 # for Study 2, they are the main analysis
 
+# look at predictors of missing data
+demoVars = c( "sex",
+              "age", 
+              "educ",
+              "cauc",
+              "hisp",
+              "black",
+              "midEast",
+              "pacIsl",
+              "natAm", 
+              "SAsian",
+              "EAsian",
+              "SEAsian",
+              "party",
+              "pDem" )
+
+string = paste("is.na(mainY) ~ ", paste(demoVars, collapse = " + " ))
+
+nullModel = glm( is.na(mainY) ~ 1, data = d )
+missModel = glm( eval(parse(text = string) ),data = d ) 
+summary(missModel)
+
+# entire missingness model not very predictive
+anova(missModel, nullModel, test = "Chisq" )
+
+# awareness of purpose: pretty low!! 8% only
+mean(d$aware, na.rm = TRUE)
+
+
+# ~~~ END OF QUICK STUFF -----------
+
 ##### All Outcomes #####
 
-if ( study == 1 ) vars = c("mainY", secFoodY, psychY)
+if ( study %in% c(1,3) ) vars = c("mainY", secFoodY, psychY)
 if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 
+#@FOR STUDY 3, NEED TO GENL'ZE THIS TO BE OLS INSTEAD OF T-TEST SO WE
+#  CAN CONTROL FOR RANDOMIZATION STRATUM VARS
+# TURN THIS INTO A FN SO THAT WE CAN EASILY RUN FOR THE SUBSET IN STUDY 3
 rm(res.raw)
 for ( i in vars ){
   

@@ -33,23 +33,21 @@ prelims = function(study, overwrite.res) {
   library(harmonicmeanp)
   
   study <<- study
+  # for dir paths
+  study.string = paste( "Study", study, sep = " " )
   
   ##### Working Directories #####
   
   overleaf.dir <<- "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
   # results dir not specific to this study (for saving results csv)
-  general.results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R"
+  general.results.dir <<- here("Results from R")
  
+  prepped.data.dir <<- here( paste( "Data/Prepped/", study.string, sep = "" ) )
+  results.dir <<- here( paste( "Results from R/", study.string, sep = "" ) )
   
-  if ( study == 1 ) {
-    prepped.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1"
-    results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 1"
-    imputed.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 1/Saved imputations"
-  }
-  
-  if (study == 2) {
-    prepped.data.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data/Prepped/Study 2"
-    results.dir <<- "~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Results from R/Study 2"
+  # only Studies 1 and 3 have imputations
+  if ( study %in% c(1,3) ) {
+    imputed.data.dir <<- here( paste( "Data/Prepped/", study.string, "/Saved imputations", sep = "" ) )
   }
   
 
@@ -61,7 +59,7 @@ prelims = function(study, overwrite.res) {
   
   ##### Dataset #####
   setwd(prepped.data.dir)
-  if (study == 1){
+  if (study %in% c(1,3)){
     d <<- read.csv("prepped_merged_data.csv")
     
     # complete cases wrt mainY
@@ -75,7 +73,7 @@ prelims = function(study, overwrite.res) {
   if (study == 2) d <<- read.csv("prepped_data.csv"); dcc <<- d
   
   # read in imputations
-  if ( study == 1 ) {
+  if ( study %in% c(1,3) ) {
     #setwd(imputed.data.dir)
     #load("imputed_datasets.RData")  # load "imps", the mids object
     
@@ -127,12 +125,22 @@ prelims = function(study, overwrite.res) {
                "party",
                "pDem")
   
-  effect.mods <<- c("female",
-                  "young",
-                  "collegeGrad",
-                  "cauc",  
-                  "party2",
-                  "pDem2")
+  if (study %in% c(1,2)) {
+    effect.mods <<- c("female",
+                      "young",
+                      "collegeGrad",
+                      "cauc",  
+                      "party2",
+                      "pDem2")
+  } else if (study == 3) {
+    effect.mods <<- c("female",
+                      "young",
+                      "collegeGrad",
+                      "cauc",  
+                      "party2",
+                      "pDem2")
+  }
+
   
 }
 

@@ -650,6 +650,50 @@ w1Vars = c( "treat",
 # state has too many categories to work well as predictor
 impModelVars = w1Vars[ !w1Vars == "state" ]
 
+# # for helping to diagnose imp model problems: 
+# #  fit logit(P(missingness)) model
+# # predict the most missing variable
+# string = paste("is.na(otherMeat_Ounces) ~ ", paste(impModelVars, collapse = " + " ))
+# nullModel = glm( is.na(otherMeat_Ounces) ~ 1, data = d )
+# missModel = glm( eval(parse(text = string) ),data = d ) 
+# summary(missModel)
+# # entire missingness model not very predictive
+# anova(missModel, nullModel, test = "Chisq" )
+# 
+# # DEBUGGING: try cutting down dataset before imputing
+# d2 = d[ , c(demoVars, w2Vars) ]
+# head(d2)
+# fake = mice(d2, M=1)  # even this doesn't work????
+# table(d2$treat, useNA = "ifany")
+# d2$leafyVeg_Freq[ d2$leafyVeg_Freq==""] = NA
+# table(d2$leafyVeg_Freq, useNA = "ifany")
+# table(d2$treat, d2$leafyVeg_Freq, useNA = "ifany")
+
+# # look at inverse-prob of missingness weights (IPMW)
+# d$Pmissing = predict(missModel, type = "response")
+# 
+# ggplot(subset(ecls_nomiss, catholic == 1), aes(x = pr_score, fill = factor(catholic))) +
+#   geom_histogram(aes(y = - ..density..)) + # note the negative sign here
+#   geom_histogram(data = subset(ecls_nomiss, catholic == 0),
+#                  aes(x = pr_score, y = ..density.., fill = factor(catholic))) + 
+#   ylab("Density") + xlab("Probability of Catholic School Attendance") + 
+#   ggtitle("Propensity Scores in Treated and Untreated\n(Density Histogram)") + 
+#   scale_fill_discrete(name = "Catholic School")
+
+# try Amelia
+# https://cran.r-project.org/web/packages/Amelia/vignettes/using-amelia.html
+library(Amelia)
+# idvars = "a vector of column numbers or column names that indicates identification variables. These will be dropped from the analysis but copied into the imputed datasets."
+allNominalVars = names(select_if(d, is.character))
+imps = amelia( d,
+               m=1,
+               # Amelia breaks if you don't tell it which variables are characters
+               noms = allNominalVars[ allNominalVars %in% c(impModelVars, w2Vars) ],
+               idvars = names(d)[ !names(d) %in% c(impModelVars, w2Vars) ] )
+
+imps$imputations[[1]]
+write.amelia(obj = imps, file.stem = "outdata")
+# END DEBUGGING
 
 
 if ( impute.from.scratch == TRUE ) {
@@ -664,13 +708,26 @@ if ( impute.from.scratch == TRUE ) {
   # all PMM, as desired
   ini$method
   
+  # #@DEBUGGING ONLY
+  # #w2Vars = foodVars # doesn't help
+  # # doesn't even work with just these two
+  # w2Vars = "beef_Ounces"
+  # # try a less missing variable
+  # w2Vars = "leafyVeg_Freq"
+  # impModelVars = c("treat")
+  
   # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred
   myPred[myPred == 1] = 0
   # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
-  myPred[ names(d) %in% w2Vars,
-          names(d) %in% c(impModelVars, w2Vars) ] = 1
+  myPred[ names(d) %in% w2Vars, # vars to be imputed
+          names(d) %in% c(impModelVars, w2Vars) ] = 1  # ...and vars in the imputation model
+  
+  # #DDEBUGGIG ONLY
+  # myPred = ini$pred
+  # myPred[myPred == 1] = 0
+  # myPred[ "leafyVeg_Freq", "treat" ] = 1
   
   #BM: need to fix this...UGH!!!
   imps = mice( d,

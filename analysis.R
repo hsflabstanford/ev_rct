@@ -282,6 +282,8 @@ mean(d$aware, na.rm = TRUE)
 if ( study %in% c(1,3) ) vars = c("mainY", secFoodY, psychY)
 if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 
+#bm
+
 #@FOR STUDY 3, NEED TO GENL'ZE THIS TO BE OLS INSTEAD OF T-TEST SO WE
 #  CAN CONTROL FOR RANDOMIZATION STRATUM VARS
 # TURN THIS INTO A FN SO THAT WE CAN EASILY RUN FOR THE SUBSET IN STUDY 3
@@ -474,7 +476,6 @@ update_result_csv( name = "intentionReduce RR pval study 2",
 section = 4
 
 
-
 if ( study %in% c(1,3) ) {
   ##### Analyze Each Outcome (Including Primary) #####
   
@@ -489,10 +490,12 @@ if ( study %in% c(1,3) ) {
   
   
   if ( exists("res.raw") ) rm(res.raw)
+  
   for ( i in toAnalyze ) {
     
     # Study 1: t-test without controlling for anything
-    if ( study == 1 ) mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
+    if ( study == 1 ) mi.res = lapply( imps, function(.d) my_ttest(yName = i,
+                                                                   dat = .d) )
     
     # Study 3: controlling for randomization strata
     if ( study == 3 ) {
@@ -504,7 +507,7 @@ if ( study %in% c(1,3) ) {
                          my_ols_hc0( coefName = "treat",
                                      dat = .d,
                                      ols = ols,
-                                     yName = "mainY" )
+                                     yName = i )
                          } )
     }
     
@@ -515,6 +518,37 @@ if ( study %in% c(1,3) ) {
     names(part2) = paste( "g.", names(part2), sep = "" )
     new.row = cbind(part1, part2)
     
+    # Study 3 and mainY only: also do analysis for the targetDemoSimple subset
+    if ( study == 3 & i == "mainY" ) {
+      mi.res = lapply( imps,
+                       function(.d){ 
+                         # key difference from above: create the subset
+                         .d = .d[ .d$targetDemoSimple == TRUE, ]
+                         
+                         .d$Y = .d[[i]]
+                         ols = lm( Y ~ treat + targetDemographics,
+                                   data = .d)
+                         my_ols_hc0( coefName = "treat",
+                                     dat = .d,
+                                     ols = ols,
+                                     yName = i )
+                       } )
+      
+      mi.res = do.call(what = rbind, mi.res)
+      
+      part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+      part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+      names(part2) = paste( "g.", names(part2), sep = "" )
+      
+      
+      new.row2 = cbind(part1, part2)
+      
+      # overwrite new.row to actually contain both rows
+      # first row is all subjects
+      # second row is targetDemoSimple = TRUE only
+      new.row = rbind(new.row, new.row2)
+      
+    }
     
     # Bonferroni-corrected p-value
     if( i %in% c(secFoodY, psychY) ) {
@@ -533,10 +567,11 @@ if ( study %in% c(1,3) ) {
     
     # add name of this analysis
     string = paste(i, " MI", sep = "")
+    if ( study == 3 & i == "mainY" ) string = c( string, "mainY targetDemoSimple-subset MI" )
     new.row = add_column(new.row, analysis = string, .before = 1)
     
     if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-  }
+  }  # end loop over all outcomes to be analyzed
   
   res.raw
   
@@ -648,11 +683,10 @@ CreateTableOne( vars = effect.mods,
 
 ##### Multiple Imputation Effect Modification Analysis #####
 
-
 if ( exists("res.raw") ) rm(res.raw)
 
 
-if ( study == 1 ) {
+if ( study %in% c(1,3) ) {
   
   yName = "mainY"
   
@@ -660,7 +694,14 @@ if ( study == 1 ) {
   # returns a list of lm objects, one for each imputation
   mi.res = lapply( imps, function(.imp) {
     # fit one model with all effect modifiers
-    string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+    if ( study == 1 ) string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+    
+    # for Study 3, also need to control for "young", a var used in randomization that wasn't
+    #  part of the simplified effect modifier
+    if ( study == 3 ) string = paste( yName, " ~ ",
+                                      paste( "young + treat*", effect.mods, collapse=" + "),
+                                      sep = "" )
+    
     ols = lm( eval( parse( text = string ) ), data = .imp )
     
     my_ols_hc0_all( dat = .imp, ols = ols, yName = yName )
@@ -700,8 +741,11 @@ if ( study == 1 ) {
     i = 2
     
     my.mi.res = lapply( imps, function(.imp) {
-      # fit one model with all effect modifiers
-      string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+      if ( study == 1 ) string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+      
+      if ( study == 3 ) string = paste( yName, " ~ ",
+                                        paste( "young + treat*", effect.mods, collapse=" + "),
+                                        sep = "" )
       ols = lm( eval( parse( text = string ) ), data = .imp )
       
       # robust SE
@@ -728,30 +772,34 @@ if ( study == 1 ) {
   
   
   ##### One-Off Stats for Paper #####
-  update_result_csv( name = "Bonferroni alpha mods",
-                     value = round( alpha3, 4 ),
-                     print = TRUE )
-  
-  update_result_csv( name = "Number mods pass Bonf",
-                     value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ) )
-  
-  
+
   # best combo of effect modifiers
-  varNames = row.names(res.raw)[ grepl( x = row.names(res.raw), pattern = ":" ) ]
-  # can't count coefficients for both political categories
-  varNames = varNames[ !varNames == "treat:party2b.Neutral"]
-  est.best = sum( res.raw$est[ row.names(res.raw) %in% varNames ] )
-  g.best = sum( res.raw$g.est[ row.names(res.raw) %in% varNames ] )
+  if ( study == 1 ){
+    update_result_csv( name = "Bonferroni alpha mods",
+                       value = round( alpha3, 4 ),
+                       print = TRUE )
+    
+    update_result_csv( name = "Number mods pass Bonf",
+                       value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ) )
+    
   
-  update_result_csv( name = "Best effect mods est",
-                     value = round( est.best, 2 ) )
+    varNames = row.names(res.raw)[ grepl( x = row.names(res.raw), pattern = ":" ) ]
+    # can't count coefficients for both political categories
+    varNames = varNames[ !varNames == "treat:party2b.Neutral"]
+    est.best = sum( res.raw$est[ row.names(res.raw) %in% varNames ] )
+    g.best = sum( res.raw$g.est[ row.names(res.raw) %in% varNames ] )
+    
+    update_result_csv( name = "Best effect mods est",
+                       value = round( est.best, 2 ) )
+    
+    
+    update_result_csv( name = "Best effect mods g",
+                       value = round( g.best, 2 ) )
+  }
+
   
   
-  update_result_csv( name = "Best effect mods g",
-                     value = round( g.best, 2 ) )
-  
-  
-}  # end "if (study ==1 )"
+}  # end "if (study %in% c(1,3) )"
 
 
 

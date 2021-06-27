@@ -98,14 +98,16 @@ make_derived_vars = function(.d,
   
   #browser()
   # secondary outcome: total meat (total ounces over the week)
-  .d$totalMeat = rowSums( .d[, .meats])
+  # rowSums defaults to NOT removing NAs, so NA in ANY meat should cause 
+  #  total to be NA as well
+  .d$totalMeat = rowSums( .d[, .meats] )
   
   # sanity check
   # express in pounds of meat
   hist(.d$totalMeat/16)
   
   # secondary outcome: total animal products (total ounces over the week)
-  .d$totalAnimProd = rowSums( .d[, .animProds])
+  .d$totalAnimProd = rowSums( .d[, .animProds] )
   
   # primary outcome: total meat + animal product consumption
   .d$mainY = .d$totalMeat + .d$totalAnimProd

@@ -782,6 +782,27 @@ d = read_interm("d_intermediate_1.csv")
 # recode CC dataset
 d2 = make_derived_vars(d)
 
+# sanity checks
+# mainY should be missing whenever any frequency variable is missing
+# but not necessarily when the ounces variables are missing, because those 
+#  are also missing if the subject reported never eating that food
+#bm
+freqVars = c("chicken_Freq",
+               "turkey_Freq",
+               "fish_Freq",
+               "pork_Freq",
+               "beef_Freq",
+               "otherMeat_Freq",
+               "dairy_Freq",
+               "eggs_Freq")
+
+temp = d2[ ,freqVars ]
+# Study 3: Equals 0 or 8, meaning that either someone dropped out of study entirely
+#  or they answered all food freq questions, which is good
+d2$numFoodFreqMissing = rowSums( is.na(temp) )
+
+expect_equal( d2$numFoodFreqMissing > 0, is.na(d2$mainY) )
+  
 
 ##### Recode the Imputations #####
 # saves a new version of the imputation dataset (does not overwrite the old one)

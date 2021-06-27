@@ -285,7 +285,7 @@ if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 #@FOR STUDY 3, NEED TO GENL'ZE THIS TO BE OLS INSTEAD OF T-TEST SO WE
 #  CAN CONTROL FOR RANDOMIZATION STRATUM VARS
 # TURN THIS INTO A FN SO THAT WE CAN EASILY RUN FOR THE SUBSET IN STUDY 3
-rm(res.raw)
+if ( exists("res.raw") ) rm(res.raw)
 for ( i in vars ){
   
   test = t.test( d[[i]] ~ (d$treat == FALSE), na.rm = TRUE  )
@@ -473,7 +473,9 @@ update_result_csv( name = "intentionReduce RR pval study 2",
 
 section = 4
 
-if ( study == 1 ) {
+
+
+if ( study %in% c(1,3) ) {
   ##### Analyze Each Outcome (Including Primary) #####
   
   # for Bonferroni
@@ -488,7 +490,24 @@ if ( study == 1 ) {
   
   if ( exists("res.raw") ) rm(res.raw)
   for ( i in toAnalyze ) {
-    mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
+    
+    # Study 1: t-test without controlling for anything
+    if ( study == 1 ) mi.res = lapply( imps, function(.d) my_ttest(yName = i, dat = .d) )
+    
+    # Study 3: controlling for randomization strata
+    if ( study == 3 ) {
+      mi.res = lapply( imps,
+                       function(.d){ 
+                         .d$Y = .d[[i]]
+                         ols = lm( Y ~ treat + targetDemographics,
+                                   data = .d)
+                         my_ols_hc0( coefName = "treat",
+                                     dat = .d,
+                                     ols = ols,
+                                     yName = "mainY" )
+                         } )
+    }
+    
     mi.res = do.call(what = rbind, mi.res)
     
     part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)

@@ -133,6 +133,7 @@ prelims = function(study, overwrite.res) {
                       "party2",
                       "pDem2")
   } else if (study == 3) {
+    #@: chagne this! 
     effect.mods <<- c("female",
                       "young",
                       "collegeGrad",

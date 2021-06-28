@@ -9,18 +9,22 @@
 # bm: This code still needs more sanity checks. Data prep already has its own sanity checks
 #  in a separate file. 
 
-
 rm( list = ls() )
 
-library(here)
+# set your parameters here
+study = 3
+overwrite.res = TRUE
 
+
+library(here)
 code.dir = here("Code (git)")
 setwd(code.dir)
 source("helper_analysis.R")
 
 # makes a bunch of global variables for different directories, lists of variables, etc.,
 #  and reads in datasets
-prelims(study = 3, overwrite.res = TRUE)
+prelims(study = study, overwrite.res = overwrite.res)
+if ( overwrite.res == TRUE ) wr()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                   1. SANITY CHECKS
@@ -47,13 +51,13 @@ CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d 
 section = 2
 
 ##### Sample Sizes and Retention (For Study 1) #####
-update_result_csv( name = paste( "N wave 1 study", study ),
+update_result_csv( name = paste( "N wave 1", study ),
                    value = nrow(d) )
 
 
 if ( study == 1 ){
   
-  update_result_csv( name = paste( "N wave 2 study", study ),
+  update_result_csv( name = paste( "N wave 2", study ),
                      value = nrow(dcc) )
   
   # differential attrition by treatment group and demographics
@@ -131,21 +135,21 @@ if ( study == 1 ){
   
   # demographics to comment on specifically
   # age
-  update_result_csv( name = "Age median study 1",
+  update_result_csv( name = "Age median",
                      value = round( median(d$age), 0 ) )
   
   # at least college-educated
-  update_result_csv( name = "Perc educ at least college study 1",
+  update_result_csv( name = "Perc educ at least college",
                      value = round( 100 * mean( d$educ %in% c("d.4yr", "e.post") ), 0 ) )
   
   # politics
-  update_result_csv( name = "Perc Democrats study 1",
+  update_result_csv( name = "Perc Democrats",
                      value = round( 100 * mean( d$party == "Democrat" ), 0 ) )
   
-  update_result_csv( name = "Perc Republicans study 1",
+  update_result_csv( name = "Perc Republicans",
                      value = round( 100 * mean( d$party == "Republican" ), 0 ) )
   
-  update_result_csv( name = "Median county liberalism study 1",
+  update_result_csv( name = "Median county liberalism",
                      value = round( median( 100 * d$pDem ), 0 ) )
   
   
@@ -180,16 +184,16 @@ if ( study == 1 ){
                      value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 0 ) )
   
   # attention check
-  update_result_csv( name = "Perc videoContent animals treat 1 study 1",
+  update_result_csv( name = "Perc videoContent animals treat 1",
                      value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 1]) ), 0 ) )
   
-  update_result_csv( name = "Perc videoContent animals treat 0 study 1",
+  update_result_csv( name = "Perc videoContent animals treat 0",
                      value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 0]) ), 0 ) )
   
-  update_result_csv( name = "Perc pass check treat 1 study 1",
+  update_result_csv( name = "Perc pass check treat 1",
                      value = round( 100 * mean(d$passCheck[ d$treat == 1] == TRUE), 0 ) )
   
-  update_result_csv( name = "Perc pass check treat 0 study 1",
+  update_result_csv( name = "Perc pass check treat 0",
                      value = round( 100 * mean(d$passCheck[ d$treat == 0] == TRUE), 0 ) )
   
 }
@@ -475,177 +479,12 @@ update_result_csv( name = "intentionReduce RR pval study 2",
 
 section = 4
 
+#bm: getting stuck inside analyze_all_outcomes
 
-if ( study %in% c(1,3) ) {
-  ##### Analyze Each Outcome (Including Primary) #####
-  
-  # for Bonferroni
-  n.secY = sum( length(secFoodY), length(psychY) )
-  ( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
-  
-  # variables to analyze
-  toAnalyze = c("mainY", secFoodY, psychY )
-  if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
-  
-  
-  
-  if ( exists("res.raw") ) rm(res.raw)
-  
-  for ( i in toAnalyze ) {
-    
-    # Study 1: t-test without controlling for anything
-    if ( study == 1 ) mi.res = lapply( imps, function(.d) my_ttest(yName = i,
-                                                                   dat = .d) )
-    
-    # Study 3: controlling for randomization strata
-    if ( study == 3 ) {
-      mi.res = lapply( imps,
-                       function(.d){ 
-                         .d$Y = .d[[i]]
-                         ols = lm( Y ~ treat + targetDemographics,
-                                   data = .d)
-                         my_ols_hc0( coefName = "treat",
-                                     dat = .d,
-                                     ols = ols,
-                                     yName = i )
-                         } )
-    }
-    
-    mi.res = do.call(what = rbind, mi.res)
-    
-    part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
-    part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
-    names(part2) = paste( "g.", names(part2), sep = "" )
-    new.row = cbind(part1, part2)
-    
-    # Study 3 and mainY only: also do analysis for the targetDemoSimple subset
-    if ( study == 3 & i == "mainY" ) {
-      mi.res = lapply( imps,
-                       function(.d){ 
-                         # key difference from above: create the subset
-                         .d = .d[ .d$targetDemoSimple == TRUE, ]
-                         
-                         .d$Y = .d[[i]]
-                         ols = lm( Y ~ treat + targetDemographics,
-                                   data = .d)
-                         my_ols_hc0( coefName = "treat",
-                                     dat = .d,
-                                     ols = ols,
-                                     yName = i )
-                       } )
-      
-      mi.res = do.call(what = rbind, mi.res)
-      
-      part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
-      part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
-      names(part2) = paste( "g.", names(part2), sep = "" )
-      
-      
-      new.row2 = cbind(part1, part2)
-      
-      # overwrite new.row to actually contain both rows
-      # first row is all subjects
-      # second row is targetDemoSimple = TRUE only
-      new.row = rbind(new.row, new.row2)
-      
-    }
-    
-    # Bonferroni-corrected p-value
-    if( i %in% c(secFoodY, psychY) ) {
-      new.row$pvalBonf = min( 1, new.row$pval * n.secY )
-      new.row$group = "secY"
-      
-      if( i %in% secFoodY) new.row$group.specific = "secY food"
-      if( i %in% psychY) new.row$group.specific = "secY psych"
-      
-    } else if (i == "mainY") {
-      # for primary outcome
-      new.row$pvalBonf = NA
-      new.row$group = "mainY"
-      new.row$group.specific = "mainY"
-    }
-    
-    # add name of this analysis
-    string = paste(i, " MI", sep = "")
-    if ( study == 3 & i == "mainY" ) string = c( string, "mainY targetDemoSimple-subset MI" )
-    new.row = add_column(new.row, analysis = string, .before = 1)
-    
-    if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-  }  # end loop over all outcomes to be analyzed
-  
-  res.raw
-  
-  ##### Save Both Raw and Cleaned-Up Results Tables #####
-  
-  # in order to have the unrounded values
-  setwd(results.dir)
-  write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
-  
-  # cleaned-up version
-  # round it
-  res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
-  
-  res.nice = data.frame( analysis = res.raw$analysis,
-                         est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
-                         g.est = stat_CI( res.raw$g.est, res.raw$g.lo, res.raw$g.hi),
-                         pval = res.raw$pval,
-                         pvalBonf = res.raw$pvalBonf )
-  
-  
-  setwd(results.dir)
-  write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
-  
-  
-  ##### One-Off Stats for Paper: Main Estimates #####
-  update_result_csv( name = "mainY diff",
-                     value = round( res.raw$est[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  update_result_csv( name = "mainY diff lo",
-                     value = round( res.raw$lo[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  update_result_csv( name = "mainY diff hi",
-                     value = round( res.raw$hi[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  update_result_csv( name = "mainY diff pval",
-                     value = format_pval( res.raw$pval[ res.raw$analysis == "mainY MI"], 2 ),
-                     print = TRUE )
-  
-  update_result_csv( name = "mainY diff g",
-                     value = round( res.raw$g.est[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  update_result_csv( name = "mainY diff g lo",
-                     value = round( res.raw$g.lo[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  update_result_csv( name = "mainY diff g hi",
-                     value = round( res.raw$g.hi[ res.raw$analysis == "mainY MI"], 2 ) )
-  
-  
-  ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
-  update_result_csv( name = "Bonferroni alpha secY",
-                     value = round( alpha2, 4 ) )
-  
-  update_result_csv( name = "Bonferroni number secY",
-                     value = n.secY )
-  
-  update_result_csv( name = "Number secY pass Bonf",
-                     value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ) )
-  
-  # harmonic mean p-values by subsets of effect modifiers
-  update_result_csv( name = "HMP all secY",
-                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
-                                                 L = sum(res.raw$group == "secY") ), 2 ) )
-  
-  update_result_csv( name = "HMP food secY",
-                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
-                                                 L = sum(res.raw$group.specific == "secY food") ), 2 ) )
-  
-  update_result_csv( name = "HMP psych secY",
-                     value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
-                                                 L = sum(res.raw$group.specific == "secY psych") ), 2 ) )
-  
-}  # end "if (study == 1)"
+if ( exists("res.raw") ) rm(res.raw)
 
-
+( res.CC = analyze_all_outcomes(missMethod = "CC") )
+res.MI = analyze_all_outcomes(missMethod = "MI")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

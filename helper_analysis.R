@@ -142,6 +142,250 @@ prelims = function(study, overwrite.res) {
 
 ########################### FNs FOR STATISTICS ###########################
 
+##### Major Fn: Analyze All Outcomes, Primary and Secondary #####
+
+# uses a lot of global vars, like study
+# works for study 1 and 3, but not 2
+
+
+analyze_all_outcomes = function(missMethod) {
+  if ( study %in% c(1,3) ) {
+    ##### Analyze Each Outcome (Including Primary) #####
+    
+    # for Bonferroni
+    n.secY = sum( length(secFoodY), length(psychY) )
+    ( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
+    
+    # variables to analyze
+    toAnalyze = c("mainY", secFoodY, psychY )
+    if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
+    
+    
+    
+    if ( exists("res.raw") ) rm(res.raw)
+    
+    for ( i in toAnalyze ) {
+      
+      # Study 1: t-test without controlling for anything
+      #@NOT DESIGNED TO WORK WITH MISSMETHOD == CC
+      if ( study == 1 & missMethod == "MI"){
+        mi.res = lapply( imps, function(.d) my_ttest(yName = i,
+                                                     dat = .d) )
+      }
+      
+      # Study 3: controlling for randomization strata
+      if ( study == 3 ) {
+        
+        if ( missMethod == "MI" ) {
+          mi.res = lapply( imps,
+                           function(.d){ 
+                             .d$Y = .d[[i]]
+                             ols = lm( Y ~ treat + targetDemographics,
+                                       data = .d)
+                             my_ols_hc0( coefName = "treat",
+                                         dat = .d,
+                                         ols = ols,
+                                         yName = i )
+                           } )
+        }
+        
+        if ( missMethod == "CC" ) {
+          .d = d
+          .d$Y = .d[[i]]
+          ols = lm( Y ~ treat + targetDemographics,
+                    data = .d)
+          mi.res = my_ols_hc0( coefName = "treat",
+                               dat = .d,
+                               ols = ols,
+                               yName = i )
+          
+        }
+        
+      }
+      
+      # pool the imputations
+      # might have only 1 row if we're doing CC analysis
+      if ( missMethod == "MI" ) {
+        mi.res = do.call(what = rbind, mi.res)
+        part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+        part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+        names(part2) = paste( "g.", names(part2), sep = "" )
+        names(part2)[ names(part2) == "g.est" ] = "g"
+        new.row = cbind(part1, part2)
+        
+      } else if ( missMethod == "CC" ) {
+        # no need to pool in this case
+        new.row = mi.res
+      }
+      
+      
+      # Study 3 and mainY only: also do analysis for the targetDemoSimple subset
+      if ( study == 3 & i == "mainY" ) {
+        
+        if ( missMethod == "MI" ) {
+          mi.res = lapply( imps,
+                           function(.d){ 
+                             # key difference from above: create the subset
+                             .d = .d[ .d$targetDemoSimple == TRUE, ]
+                             .d$Y = .d[[i]]
+                             ols = lm( Y ~ treat + targetDemographics,
+                                       data = .d)
+                             my_ols_hc0( coefName = "treat",
+                                         dat = .d,
+                                         ols = ols,
+                                         yName = i )
+                           } )
+        }
+        
+        if ( missMethod == "CC" ) {
+          # key difference from above: create the subset
+          .d = d[ d$targetDemoSimple == TRUE, ]
+          .d$Y = .d[[i]]
+          ols = lm( Y ~ treat + targetDemographics,
+                    data = .d)
+          mi.res = my_ols_hc0( coefName = "treat",
+                               dat = .d,
+                               ols = ols,
+                               yName = i )
+        }
+        
+        
+        
+        # might have only 1 row if we're doing CC analysis
+        if ( missMethod == "MI" ) {
+          mi.res = do.call(what = rbind, mi.res)
+          part1 = mi_pool(ests = mi.res$est, ses = mi.res$se)
+          part2 = mi_pool(ests = mi.res$g, ses = mi.res$g.se)
+          names(part2) = paste( "g.", names(part2), sep = "" )
+          names(part2)[ names(part2) == "g.est" ] = "g"
+          new.row2 = cbind(part1, part2)
+          
+        } else if ( missMethod == "CC" ) {
+          # no need to pool in this case
+          new.row2 = mi.res
+        }
+        
+        # overwrite new.row to actually contain both rows
+        # first row is all subjects
+        # second row is targetDemoSimple = TRUE only
+        new.row = rbind(new.row, new.row2)
+        
+      }  # end study == 3 & i == "mainY"
+      
+      # Bonferroni-corrected p-value
+      if( i %in% c(secFoodY, psychY) ) {
+        new.row$pvalBonf = min( 1, new.row$pval * n.secY )
+        new.row$group = "secY"
+        
+        if( i %in% secFoodY) new.row$group.specific = "secY food"
+        if( i %in% psychY) new.row$group.specific = "secY psych"
+        
+      } else if (i == "mainY") {
+        # for primary outcome
+        new.row$pvalBonf = NA
+        new.row$group = "mainY"
+        new.row$group.specific = "mainY"
+      }
+      
+      # add name of this analysis
+      string = paste(i, missMethod, sep = " ")
+      if ( study == 3 & i == "mainY" ) string = c( string, paste( "mainY targetDemoSimple-subset ",
+                                                                  missMethod,
+                                                                  sep = "") )
+      new.row = add_column(new.row, analysis = string, .before = 1)
+      
+      #browser()
+      if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+    }  # end loop over all outcomes to be analyzed
+    
+    #res.raw
+    
+    
+    ##### Save Both Raw and Cleaned-Up Results Tables #####
+    
+    # in order to have the unrounded values
+    setwd(results.dir)
+    if ( missMethod == "MI") write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
+    if ( missMethod == "CC") write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
+    
+    #browser()
+    
+    # cleaned-up version
+    # round it
+    res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
+    
+    res.nice = data.frame( analysis = res.raw$analysis,
+                           est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
+                           g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
+                           pval = res.raw$pval,
+                           pvalBonf = res.raw$pvalBonf )
+    
+    
+    setwd(results.dir)
+    if ( missMethod == "MI") write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
+    if ( missMethod == "CC") write.csv(res.nice, "table2_trt_effect_all_outcomes_cc_pretty.csv")
+    
+    
+    ##### One-Off Stats for Paper: Main Estimates #####
+    analysis.string = paste( "mainY", missMethod, sep = " ")
+    
+    update_result_csv( name = paste( "mainY diff", missMethod ),
+                       value = round( res.raw$est[ res.raw$analysis == analysis.string], 2 ) )
+    
+    update_result_csv( name = paste( "mainY diff lo", missMethod ),
+                       value = round( res.raw$lo[ res.raw$analysis == analysis.string], 2 ) )
+    
+    update_result_csv( name = paste( "mainY diff hi", missMethod ),
+                       value = round( res.raw$hi[ res.raw$analysis == analysis.string], 2 ) )
+    
+ 
+    update_result_csv( name = paste( "mainY diff pval", missMethod ),
+                       value = format_pval( res.raw$pval[ res.raw$analysis == analysis.string], 2 ) )
+    
+    update_result_csv( name = paste( "mainY diff g", missMethod ),
+                       value = round( res.raw$g[ res.raw$analysis == analysis.string], 2 ) )
+    
+    update_result_csv( name = paste( "mainY diff g lo", missMethod ),
+                       value = round( res.raw$g.lo[ res.raw$analysis == analysis.string], 2 ) )
+    
+    update_result_csv( name = paste( "mainY diff g hi", missMethod ),
+                       value = round( res.raw$g.hi[ res.raw$analysis == analysis.string], 2 ) )
+    
+    
+    ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
+    update_result_csv( name = paste( "Bonferroni alpha secY", missMethod ),
+                       value = round( alpha2, 4 ) )
+    
+    update_result_csv( name = paste( "Bonferroni number secY", missMethod ),
+                       value = n.secY )
+    
+    update_result_csv( name = paste( "Number secY pass Bonf", missMethod ),
+                       value = sum( res.raw$pvalBonf[ res.raw$group == "secY" ] < 0.05 ) )
+    
+    # harmonic mean p-values by subsets of effect modifiers
+    update_result_csv( name = paste( "HMP all secY", missMethod ),
+                       value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group == "secY" ],
+                                                   L = sum(res.raw$group == "secY") ), 2 ) )
+    
+    update_result_csv( name = paste("HMP food secY", missMethod ),
+                       value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY food" ],
+                                                   L = sum(res.raw$group.specific == "secY food") ), 2 ) )
+    
+    update_result_csv( name = paste( "HMP psych secY", missMethod ),
+                       value = format_pval( p.hmp( p = res.raw$pval[ res.raw$group.specific == "secY psych" ],
+                                                   L = sum(res.raw$group.specific == "secY psych") ), 2 ) )
+    
+  }  else {
+    stop("not implemented for that study yet")
+  }
+  
+  return(res.nice)
+}
+
+
+
+
+
 ##### Fn: Calculate Crude RR #####
 
 # gets the raw RR 
@@ -518,11 +762,15 @@ stat_CI( c(.5, -.1), c(.3, -.2), c(.7, .0) )
 # for reproducible manuscript-writing
 # adds a row to the file "stats_for_paper" with a new statistic or value for the manuscript
 # optionally, "section" describes the section of code producing a given result
+# expects "study" to be a global var
 update_result_csv = function( name,
                               .section = section,
                               value = NA,
                               print = FALSE ) {
   setwd(general.results.dir)
+  
+  # attach study number to name
+  name = paste("Study", study, name, sep = " ")
   
   new.rows = data.frame( name,
                          value = as.character(value),

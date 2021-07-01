@@ -15,7 +15,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 2
 overwrite.res = TRUE
 
 
@@ -238,226 +238,52 @@ if ( study == 2 ){
 
 
 
-# 3. COMPLETE-CASE ANALYSES --------------------------------------
-
-section = 3
-
-
-# ~~~ MOVE THIS: QUICK LOOK AT MAIN RESULTS FOR STUDY 3 -----------
-#bm: Look at missingness by fitting missing propensity model
-# CC analysis, all subjects
-# estimated treatment effect is about 5 oz in the desired direction
-summary( lm(mainY ~ treat + targetDemographics,
-            data = d) )
-# and among subset with simplified target demographics
-# also control for "young" because was used in randomization but isn't part of targetDemoSimple
-# not any better in this subset of 126 subjects
-summary( lm(mainY ~ treat + young,
-            data = d[ d$targetDemoSimple == TRUE, ] ) )
-
-# for Study 1, these are just a sensitivity analysis and sanity check
-# for Study 2, they are the main analysis
-
-# look at predictors of missing data
-demoVars = c( "sex",
-              "age", 
-              "educ",
-              "cauc",
-              "hisp",
-              "black",
-              "midEast",
-              "pacIsl",
-              "natAm", 
-              "SAsian",
-              "EAsian",
-              "SEAsian",
-              "party",
-              "pDem" )
-
-string = paste("is.na(mainY) ~ ", paste(demoVars, collapse = " + " ))
-
-nullModel = glm( is.na(mainY) ~ 1, data = d )
-missModel = glm( eval(parse(text = string) ),data = d ) 
-summary(missModel)
-
-# entire missingness model not very predictive
-anova(missModel, nullModel, test = "Chisq" )
-
-# awareness of purpose: pretty low!! 8% only
-mean(d$aware, na.rm = TRUE)
-
-# ~~~ END OF QUICK STUFF -----------
-
-# ~ All Outcomes ------------------------------------------------
-
-if ( study %in% c(1,3) ) vars = c("mainY", secFoodY, psychY)
-if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
-
-#bm
-
-#@SHOULD NOW BE REDUDANT WITH LATER ANALYZE_ALL_OUTCOMES, AT LEAST FOR STUDY 3
-if ( exists("res.raw") ) rm(res.raw)
-for ( i in vars ){
-  
-  test = t.test( d[[i]] ~ (d$treat == FALSE), na.rm = TRUE  )
-  
-  m0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE )
-  m1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE )
-  
-  # Hedges' g
-  # recode to be more intuitive
-  # as.factor in RHS to avoid annoying warnings
-  library(effsize)
-  es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
-  
-  new.row = data.frame( outcome = i,
-                        mn0 = m0,
-                        mn1 = m1,
-                        med0 = median( d[[i]][ d$treat == 0], na.rm = TRUE ),
-                        med1 = median( d[[i]][ d$treat == 1], na.rm = TRUE ),
-                        mn.diff = m1-m0,
-                        lo = test$conf.int[1],
-                        hi = test$conf.int[2],
-                        pval = test$p.value,
-                        g = es$estimate,
-                        g.lo = es$conf.int[1],
-                        g.hi = es$conf.int[2],
-                        pval2 = NA, # NA because will be redundant with previous p-value for continuous outcomes
-                        note = NA) 
-  if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-}
-
-# # for Study 2: use absolute value of intention change for more intuitive reporting
-# if ( study == 2 ) {
-#   
-# }
+# # 3. COMPLETE-CASE ANALYSES --------------------------------------
+# 
+# section = 3
 
 
-# for Study 2: handle binary intention variable differently
-if ( study == 2 ){
-  # get inference for risk difference
-  mod1 = lm( intentionReduce ~ treat,
-             data = d )
-  mod1Inf = coeftest(mod1, vcov = vcovHC(mod1, type = "HC0"))["treat",]
-  df = nrow(d) - 2
-  tcrit = qt(p = 0.975, df = df)
-  
-  # get estimate and inference for RR
-  mod2 = glm( intentionReduce ~ treat,
-              data = d,
-              family = binomial(link="log") )
-  mod2Inf = confint(mod2)
-  
-  new.row = data.frame( outcome = "intentionReduce",
-                        mn0 = mean( d$intentionReduce[d$treat == 0] ),
-                        mn1 = mean( d$intentionReduce[d$treat == 1] ),
-                        med0 = NA,
-                        med1 = NA,
-                        mn.diff = m1-m0,
-                        lo = mod1Inf["Estimate"] - mod1Inf["Std. Error"] * tcrit,
-                        hi = mod1Inf["Estimate"] + mod1Inf["Std. Error"] * tcrit,
-                        pval = mod1Inf["Pr(>|t|)"],
-                        g = exp( mod2$coef["treat"] ),
-                        g.lo = exp( mod2Inf["treat", "2.5 %"] ),
-                        g.hi = exp( mod2Inf["treat", "97.5 %"] ),
-                        pval2 = summary(mod2)$coefficients["treat","Pr(>|z|)"],
-                        note = "Binary outcome, so pval is from robust SEs and g's are actually risk ratios" )
-  res.raw = rbind(res.raw, new.row)
-}
-
-
-# should be redundant with analyze_all_outcomes EXCEPT for study 2
-# ~~ Save Both Raw and Cleaned-Up Results Tables ------------------------------------------------
-
-# in order to have the unrounded values
-setwd(results.dir)
-write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
-
-# cleaned-up version
-# round it
-res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("outcome", "note" ) ], function(x) round(x,2) )
-
-res.nice = data.frame( analysis = res.raw$outcome,
-                       est = stat_CI( res.raw$mn.diff, res.raw$lo, res.raw$hi),
-                       g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
-                       pval = res.raw$pval )
-
-
-setwd(results.dir)
-write.csv(res.nice, "trt_effect_all_outcomes_cc_pretty.csv")
-
-# for pasting into TeX supplement
-library(xtable)
-print( xtable( res.nice,
-               include.rownames = FALSE ) )
-
-
-# ~~ One-Off Stats for Study 2 ------------------------------------------------
-
-# intentions in each group
-update_result_csv( name = "intentionCont mean cntrl study 2",
-                   value = round( res.raw$mn0[ res.raw$outcome == "intentionCont" ], 2 ) )
-
-update_result_csv( name = "Preduce cntrl study 2",
-                   value = round( 100 * mean( d$intentionReduce[d$treat ==0] ), 0 ) )
-
-update_result_csv( name = "intentionCont mean treat study 2",
-                   value = round( res.raw$mn1[ res.raw$outcome == "intentionCont" ], 2 ) )
-
-# sanity check
-mean( d$intentionCont[ d$treat == 0 ] )
-
-update_result_csv( name = "Preduce treat study 2",
-                   value = round( 100 * mean( d$intentionReduce[d$treat ==1] ), 0 ) )
-
-
-
-
-# continuous outcomes
-toReport = c("intentionCont", "mainY", "totalMeat", "totalAnimProd" )
-
-options( scipen = 999 )
-( pvals = format.pval( res.raw$pval[ res.raw$outcome %in% toReport ],eps =  0.0001 ) )
-
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "diff study 2" ),
-                   value = round( res.raw$mn.diff[ res.raw$outcome %in% toReport ], 2 ) )
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "lo study 2" ),
-                   value = round( res.raw$lo[ res.raw$outcome %in% toReport ], 2 ) )
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "hi study 2" ),
-                   value = round( res.raw$hi[ res.raw$outcome %in% toReport ], 2 ) )
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "pval study 2" ),
-                   value = pvals )
-
-
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g study 2" ),
-                   value = round( res.raw$g[ res.raw$outcome %in% toReport ], 2 ) )
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g lo study 2" ),
-                   value = round( res.raw$g.lo[ res.raw$outcome %in% toReport ], 2 ) )
-
-update_result_csv( name = paste( res.raw$outcome[ res.raw$outcome %in% toReport ], "g hi study 2" ),
-                   value = round( res.raw$g.hi[ res.raw$outcome %in% toReport ], 2 ) )
-
-# binary outcome
-# this is actually a risk ratio even though it's in the "g" column
-
-update_result_csv( name = "intentionReduce RR study 2",
-                   value = round( res.raw$g[ res.raw$outcome == "intentionReduce" ], 2 ) )
-
-
-update_result_csv( name = "intentionReduce RR lo study 2",
-                   value = round( res.raw$g.lo[ res.raw$outcome == "intentionReduce" ], 2 ) )
-
-update_result_csv( name = "intentionReduce RR hi study 2",
-                   value = round( res.raw$g.hi[ res.raw$outcome == "intentionReduce" ], 2 ) )
-
-update_result_csv( name = "intentionReduce RR pval study 2",
-                   value = format.pval( res.raw$pval2[ res.raw$outcome == "intentionReduce" ], eps = 0.0001 ) )
+# # ~~~ MOVE THIS: QUICK LOOK AT MAIN RESULTS FOR STUDY 3 -----------
+# #bm: Look at missingness by fitting missing propensity model
+# # CC analysis, all subjects
+# # estimated treatment effect is about 5 oz in the desired direction
+# summary( lm(mainY ~ treat + targetDemographics,
+#             data = d) )
+# # and among subset with simplified target demographics
+# # also control for "young" because was used in randomization but isn't part of targetDemoSimple
+# # not any better in this subset of 126 subjects
+# summary( lm(mainY ~ treat + young,
+#             data = d[ d$targetDemoSimple == TRUE, ] ) )
+# 
+# # look at predictors of missing data
+# demoVars = c( "sex",
+#               "age", 
+#               "educ",
+#               "cauc",
+#               "hisp",
+#               "black",
+#               "midEast",
+#               "pacIsl",
+#               "natAm", 
+#               "SAsian",
+#               "EAsian",
+#               "SEAsian",
+#               "party",
+#               "pDem" )
+# 
+# string = paste("is.na(mainY) ~ ", paste(demoVars, collapse = " + " ))
+# 
+# nullModel = glm( is.na(mainY) ~ 1, data = d )
+# missModel = glm( eval(parse(text = string) ),data = d ) 
+# summary(missModel)
+# 
+# # entire missingness model not very predictive
+# anova(missModel, nullModel, test = "Chisq" )
+# 
+# # awareness of purpose: pretty low!! 8% only
+# mean(d$aware, na.rm = TRUE)
+# 
+# # ~~~ END OF QUICK STUFF -----------
 
 
 # 4. TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES ------------------------------------------------
@@ -483,14 +309,94 @@ update_result_csv( name = "intentionReduce RR pval study 2",
 
 section = 4
 
-#bm: getting stuck inside analyze_all_outcomes
 
 if ( exists("res.raw") ) rm(res.raw)
 
 ( res.CC = analyze_all_outcomes(missMethod = "CC") )
-( res.MI = analyze_all_outcomes(missMethod = "MI") )
 
-#bm: I think we can delete the earlier CC part now... :)
+# study 2 doesn't have any missing data, so doesn't get MI analyses
+if ( study %in% c(1,3)) {
+  ( res.MI = analyze_all_outcomes(missMethod = "MI") )
+}
+
+
+
+# # for pasting into TeX supplement - NEEDED?
+# library(xtable)
+# print( xtable( res.nice,
+#                include.rownames = FALSE ) )
+
+
+# ~~ One-Off Stats for Study 2 ------------------------------------------------
+
+
+res.raw = res.CC$res.raw
+# intentions in each group
+update_result_csv( name = "intentionCont mean cntrl study 2",
+                   value = round( res.raw$mn0[ res.raw$analysis == "intentionCont CC" ], 2 ) )
+
+update_result_csv( name = "Preduce cntrl study 2",
+                   value = round( 100 * mean( d$intentionReduce[d$treat ==0] ), 0 ) )
+
+update_result_csv( name = "intentionCont mean treat study 2",
+                   value = round( res.raw$mn1[ res.raw$analysis == "intentionCont CC" ], 2 ) )
+
+# sanity check
+mean( d$intentionCont[ d$treat == 0 ] )
+
+update_result_csv( name = "Preduce treat study 2",
+                   value = round( 100 * mean( d$intentionReduce[d$treat ==1] ), 0 ) )
+
+
+
+
+# continuous outcomes
+toReport = c("intentionCont CC", "mainY CC", "totalMeat CC", "totalAnimProd CC" )
+
+options( scipen = 999 )
+( pvals = format.pval( res.raw$pval[ res.raw$analysis %in% toReport ],eps =  0.0001 ) )
+
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "diff study 2" ),
+                   value = round( res.raw$est[ res.raw$analysis %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "lo study 2" ),
+                   value = round( res.raw$lo[ res.raw$analysis %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "hi study 2" ),
+                   value = round( res.raw$hi[ res.raw$analysis %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "pval study 2" ),
+                   value = pvals )
+
+
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g study 2" ),
+                   value = round( res.raw$g[ res.raw$analysis %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g lo study 2" ),
+                   value = round( res.raw$g.lo[ res.raw$analysis %in% toReport ], 2 ) )
+
+update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g hi study 2" ),
+                   value = round( res.raw$g.hi[ res.raw$analysis %in% toReport ], 2 ) )
+
+# binary outcome
+# this is actually a risk ratio even though it's in the "g" column
+
+update_result_csv( name = "intentionReduce RR study 2",
+                   value = round( res.raw$g[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
+
+
+update_result_csv( name = "intentionReduce RR lo study 2",
+                   value = round( res.raw$g.lo[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
+
+update_result_csv( name = "intentionReduce RR hi study 2",
+                   value = round( res.raw$g.hi[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
+
+update_result_csv( name = "intentionReduce RR pval study 2",
+                   value = format.pval( res.raw$pval2[ res.raw$analysis == "intentionReduce CC" ], eps = 0.0001 ) )
+
+
 
 
 # 5. TABLE 3: EFFECT MODIFIERS ------------------------------------------------

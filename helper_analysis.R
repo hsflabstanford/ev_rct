@@ -154,14 +154,15 @@ prelims = function(study, overwrite.res) {
 
 
 analyze_all_outcomes = function(missMethod) {
-  if ( study %in% c(1,3) ) {
+  
+  if ( study %in% c(1,2,3) ) {
     ##### Analyze Each Outcome (Including Primary) #####
     
     # for Bonferroni
     n.secY = sum( length(secFoodY), length(psychY) )
     ( alpha2 = 0.05 / n.secY ) # Bonferroni-adjusted alpha
     
-    # variables to analyze
+    # outcomes to analyze
     toAnalyze = c("mainY", secFoodY, psychY )
     if ( study == 2 ) toAnalyze = c( "intentionCont", toAnalyze )
     
@@ -170,10 +171,9 @@ analyze_all_outcomes = function(missMethod) {
     if ( exists("res.raw") ) rm(res.raw)
     
     for ( i in toAnalyze ) {
-      
-      # Study 1: t-test without controlling for anything
-      #@NOT DESIGNED TO WORK WITH MISSMETHOD == CC
-      if ( study == 1 ){
+
+      # Studies 1 and 2: don't control for any covariates
+      if ( study %in% c(1,2) ){
         
         if ( missMethod == "MI" ) {
           mi.res = lapply( imps, function(.d) my_ttest(yName = i,
@@ -283,9 +283,52 @@ analyze_all_outcomes = function(missMethod) {
         # overwrite new.row to actually contain both rows
         # first row is all subjects
         # second row is targetDemoSimple = TRUE only
-        new.row = rbind(new.row, new.row2)
+        new.row = bind_rows(new.row, new.row2)
         
       }  # end study == 3 & i == "mainY"
+      
+      
+      #bm
+      
+      # Study 2 only: also do analysis for the binary variable
+      # intentionCont here because we only want to do this extra analysis once, not
+      #  for every outcome
+      # but the analysis will actually be for intentionReduce
+      if ( study == 2 & i == "intentionCont") {
+        # get inference for risk difference
+        mod1 = lm( intentionReduce ~ treat,
+                   data = d )
+        mod1Inf = coeftest(mod1, vcov = vcovHC(mod1, type = "HC0"))["treat",]
+        df = nrow(d) - 2
+        tcrit = qt(p = 0.975, df = df)
+        
+        # get estimate and inference for RR
+        mod2 = glm( intentionReduce ~ treat,
+                    data = d,
+                    family = binomial(link="log") )
+        mod2Inf = confint(mod2)
+        
+        mn0 = mean( d$intentionReduce[d$treat == 0] )
+        mn1 = mean( d$intentionReduce[d$treat == 1] )
+        
+        new.row2 = data.frame( 
+                              est = mn1-mn0,
+                              se = mod1Inf["Std. Error"],
+                              lo = mod1Inf["Estimate"] - mod1Inf["Std. Error"] * tcrit,
+                              hi = mod1Inf["Estimate"] + mod1Inf["Std. Error"] * tcrit,
+                              pval = mod1Inf["Pr(>|t|)"],
+                              g = exp( mod2$coef["treat"] ),
+                              g.lo = exp( mod2Inf["treat", "2.5 %"] ),
+                              g.hi = exp( mod2Inf["treat", "97.5 %"] ),
+                             pval2 = summary(mod2)$coefficients["treat","Pr(>|z|)"],
+                             note = "Binary outcome, so pval is from robust SEs and g's are actually risk ratios" )
+        
+        # overwrite new.row to actually contain both rows
+        # first row is all subjects
+        # second row is targetDemoSimple = TRUE only
+        new.row = bind_rows(new.row, new.row2)
+      }
+      
       
       # Bonferroni-corrected p-value
       if( i %in% c(secFoodY, psychY) ) {
@@ -295,35 +338,47 @@ analyze_all_outcomes = function(missMethod) {
         if( i %in% secFoodY) new.row$group.specific = "secY food"
         if( i %in% psychY) new.row$group.specific = "secY psych"
         
-      } else if (i == "mainY") {
+      } else if (i %in% c("mainY") ) {
         # for primary outcome
         new.row$pvalBonf = NA
-        new.row$group = "mainY"
-        new.row$group.specific = "mainY"
+        new.row$group = i
+        new.row$group.specific = i
+      } else if ( i == "intentionCont" ) {
+        new.row$pvalBonf = NA
+        new.row$group = "intention"
+        # because this outcome produces 2 rows
+        new.row$group.specific = c("intentionCont", "intentionReduce")
       }
       
+      #browser()
       
       # for CC analyses only, add raw means and medians
       #@NOTE: FOR STUDY 3, DIFF IN MEANS WON'T EXACTLY MATCH EST BECAUSE EST CONTROLS
       #  FOR STRATIFICATION VARS
       if ( missMethod == "CC" ) {
         new.row = new.row %>% add_column( .before = 1,
-                                          mn0 = mean( .d[[i]][ .d$treat == 0], na.rm = TRUE ),
-                                          mn1 = mean( .d[[i]][ .d$treat == 1], na.rm = TRUE ),
-                                          med0 = median( .d[[i]][ .d$treat == 0], na.rm = TRUE ),
-                                          med1 = median( .d[[i]][ .d$treat == 1], na.rm = TRUE ) )
+                                          mn0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE ),
+                                          mn1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE ),
+                                          med0 = median( d[[i]][ d$treat == 0], na.rm = TRUE ),
+                                          med1 = median( d[[i]][ d$treat == 1], na.rm = TRUE ) )
       }
       
       
       # add name of this analysis
       string = paste(i, missMethod, sep = " ")
+      # handle the cases where a single i produces 2 rows
       if ( study == 3 & i == "mainY" ) string = c( string, paste( "mainY targetDemoSimple-subset ",
                                                                   missMethod,
                                                                   sep = "") )
+      
+      if ( study == 2 & i == "intentionCont" ) string = c( string, paste( "intentionReduce ",
+                                                                  missMethod,
+                                                                  sep = "") )
+      
       new.row = add_column(new.row, analysis = string, .before = 1)
       
       #browser()
-      if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+      if ( !exists("res.raw") ) res.raw = new.row else res.raw = bind_rows(res.raw, new.row)
     }  # end loop over all outcomes to be analyzed
     
     #res.raw
@@ -339,7 +394,8 @@ analyze_all_outcomes = function(missMethod) {
   
     # cleaned-up version
     # round it
-    res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
+    #browser()
+    res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "analysis.1", "group", "group.specific", "note" ) ], function(x) round(x,2) )
     
     if ( missMethod == "MI") {
       res.nice = data.frame( analysis = res.raw$analysis,
@@ -420,7 +476,8 @@ analyze_all_outcomes = function(missMethod) {
     stop("not implemented for that study yet")
   }
   
-  return(res.nice)
+  return( list(res.nice = res.nice,
+               res.raw = res.raw) )
 }
 
 

@@ -1,4 +1,7 @@
 
+
+# 0. PRELIMINARIES ------------------------------------------------
+
 # Analyzes either study 2 or study 3 depending on the argument to prelims()
 #  specified below. 
 
@@ -26,9 +29,8 @@ source("helper_analysis.R")
 prelims(study = study, overwrite.res = overwrite.res)
 if ( overwrite.res == TRUE ) wr()
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                   1. SANITY CHECKS
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+# 1. SANITY CHECKS  ------------------------------------------------
 
 # table one - wave 1
 CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
@@ -43,9 +45,7 @@ CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
 CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                 2. DESCRIPTIVE & TABLE 1
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# 2. DESCRIPTIVE & TABLE 1 ------------------------------------------------
 
 # for keeping results csv organized
 section = 2
@@ -98,7 +98,8 @@ if ( study == 1 ){
 
 }
 
-##### Table 1 (Demographics Among All Wave 1 Subjects) #####
+# ~ Table 1 (Demographics Among All Wave 1 Subjects) ------------------------------------------------
+
 # stratify demographics by treatment group
 t1.treat = make_table_one(.d = d %>% filter( treat == 1 ) )
 t1.cntrl = make_table_one(.d = d %>% filter( treat == 0 ) )
@@ -129,7 +130,8 @@ if( overwrite.res == TRUE ){
 }
 
 
-##### One-Off Stats for Paper #####
+# ~ One-Off Stats for Paper ------------------------------------------------
+
 # COVID influence on food choices (given at wave 2)
 if ( study == 1 ){
   
@@ -199,7 +201,7 @@ if ( study == 1 ){
 }
 
 
-##### Descriptive Look at Complete-Case Treatment Group Differences #####
+# ~ Descriptive Look at Complete-Case Treatment Group Differences ------------------------------------------------
 
 # examine skewed outcome (immaterial given sample size)
 hist(dcc$mainY)
@@ -278,19 +280,16 @@ anova(missModel, nullModel, test = "Chisq" )
 # awareness of purpose: pretty low!! 8% only
 mean(d$aware, na.rm = TRUE)
 
-
 # ~~~ END OF QUICK STUFF -----------
 
-##### All Outcomes #####
+# ~ All Outcomes ------------------------------------------------
 
 if ( study %in% c(1,3) ) vars = c("mainY", secFoodY, psychY)
 if ( study == 2 ) vars = c("intentionCont", "mainY", secFoodY, psychY)
 
 #bm
 
-#@FOR STUDY 3, NEED TO GENL'ZE THIS TO BE OLS INSTEAD OF T-TEST SO WE
-#  CAN CONTROL FOR RANDOMIZATION STRATUM VARS
-# TURN THIS INTO A FN SO THAT WE CAN EASILY RUN FOR THE SUBSET IN STUDY 3
+#@SHOULD NOW BE REDUDANT WITH LATER ANALYZE_ALL_OUTCOMES, AT LEAST FOR STUDY 3
 if ( exists("res.raw") ) rm(res.raw)
 for ( i in vars ){
   
@@ -361,7 +360,7 @@ if ( study == 2 ){
 }
 
 
-##### Save Both Raw and Cleaned-Up Results Tables #####
+# ~~ Save Both Raw and Cleaned-Up Results Tables ------------------------------------------------
 
 # in order to have the unrounded values
 setwd(results.dir)
@@ -386,7 +385,7 @@ print( xtable( res.nice,
                include.rownames = FALSE ) )
 
 
-##### One-Off Stats for Study 2 #####
+# ~~ One-Off Stats for Study 2 ------------------------------------------------
 
 # intentions in each group
 update_result_csv( name = "intentionCont mean cntrl study 2",
@@ -454,9 +453,7 @@ update_result_csv( name = "intentionReduce RR pval study 2",
                    value = format.pval( res.raw$pval2[ res.raw$outcome == "intentionReduce" ], eps = 0.0001 ) )
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                    4. TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# 4. TABLE 2: MAIN ANALYSIS AND ALL SECONDARY FOOD OUTCOMES ------------------------------------------------
 
 # Primary analyses: We will conduct a 2-sample Welch’s t-test of total consumption by treatment group, reporting
 # the mean difference, a 95% confidence interval, and a p-value treated as a continuous measure.
@@ -487,9 +484,7 @@ if ( exists("res.raw") ) rm(res.raw)
 ( res.MI = analyze_all_outcomes(missMethod = "MI") )
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                               5. TABLE 3: EFFECT MODIFIERS
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# 5. TABLE 3: EFFECT MODIFIERS ------------------------------------------------
 
 # Effect modifiers: We will examine two-way interactions of intervention group assignment
 # with each of the following variables from the baseline demographic data: sex, age, race/ethnicity,
@@ -520,7 +515,7 @@ CreateTableOne( vars = effect.mods,
                 includeNA = TRUE)  # last only works for NA
 
 
-##### Multiple Imputation Effect Modification Analysis #####
+# ~ Multiple Imputation Effect Modification Analysis ------------------------------------------------
 
 if ( exists("res.raw") ) rm(res.raw)
 
@@ -550,7 +545,7 @@ if ( study %in% c(1,3) ) {
 
   res.raw = mi_pool_all(.mi.res = mi.res)
   
-  ##### Save Both Raw and Cleaned-Up Results Tables #####
+  # ~~ Save Both Raw and Cleaned-Up Results Tables ----
   # in order to have the unrounded values
   setwd(results.dir)
   write.csv(res.raw, "effect_mods_MI.csv")
@@ -573,7 +568,7 @@ if ( study %in% c(1,3) ) {
   write.csv(res.nice, "effect_mods_MI_pretty.csv")
   
   
-  ##### Sanity Check #####
+  # ~~ Sanity Check ----
   # manually reproduce all results for a single coefficient
   if ( run.sanity == TRUE ) {
     # which coefficient index (including intercept)
@@ -610,7 +605,7 @@ if ( study %in% c(1,3) ) {
   }
   
   
-  ##### One-Off Stats for Paper #####
+  # ~ One-Off Stats for Paper ----
 
   # best combo of effect modifiers
   if ( study == 1 ){
@@ -644,7 +639,7 @@ if ( study %in% c(1,3) ) {
 
 
 
-##### Complete-Case Effect Modification Analysis #####
+# ~ Complete-Case Effect Modification Analysis  ------------------------------------------------
 
 
 # for Study 1, this is a sensitivity analysis
@@ -688,7 +683,7 @@ print( xtable( res.nice), include.rownames = FALSE )
 
 
 
-##### Sanity Check: Compare CC to MI #####
+# ~ Sanity Check: Compare CC to MI ------------------------------------------------
 
 if ( study == 1 & run.sanity == TRUE ) {
   setwd(results.dir)
@@ -718,23 +713,11 @@ if ( study == 1 & run.sanity == TRUE ) {
 
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                   COST-EFFECTIVENESS
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# We will estimate the cost of disseminating the intervention using
-# estimates from The Humane League's actual program that is currently doing so. We will
-# use these cost figures to give cost-effectiveness estimates in the form of, for example, dollars spent per ounce of reduced meat and animal product consumption.
-
-# ~~~ to be added
+# SUPPLEMENT: SENSITIVITY ANALYSES ------------------------------------------------
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                         SUPPLEMENT: SENSITIVITY ANALYSES
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-
-############################### SUBJECT AWARENESS ################################ 
+# ~ SUBJECT AWARENESS ------------------------------------------------ 
 
 # To assess the possible extent of subject awareness of the intervention,
 # we will report the proportions of subjects answering the probe correctly within each treatment
@@ -745,14 +728,14 @@ if ( study == 1 & run.sanity == TRUE ) {
 
 
 update_result_csv( name = "Perc aware tx group",
-                   value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ] ), 0 ) )
+                   value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ], na.rm = TRUE ), 0 ) )
 
 update_result_csv( name = "Perc aware cntrl group",
-                   value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ] ), 0 ) )
+                   value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ], na.rm = TRUE ), 0 ) )
 
 
 
-############################### NON-DIFFERENTIAL MEASUREMENT ERROR ################################ 
+# ~ NON-DIFFERENTIAL MEASUREMENT ERROR ------------------------------------------------
 
 # Anticipating that there may be more non-differential
 # measurement error in subjects’ reporting of serving sizes than in their reporting of consumption
@@ -793,7 +776,7 @@ if ( study == 1 ) {
 
 
 
-# ############################### MISSING DATA METHODS ################################ 
+# MISSING DATA METHODS 
 # 
 # # As a sensitivity analysis for the primary analyses using multiple
 # # imputation, we will conduct complete-case analyses. However, note that disagreements
@@ -823,7 +806,7 @@ if ( study == 1 ) {
 #                    print = TRUE )
 
 
-############################### EFFECTS OF INTERVENTION NONCOMPLIANCE ################################ 
+# ~ EFFECTS OF INTERVENTION NONCOMPLIANCE ------------------------------------------------ 
 
 # To supplement the primary analyses conducted
 # by intention to treat, we will account for possible noncompliance with the intervention by
@@ -836,7 +819,7 @@ if ( study == 1 ) {
 # analysis.
 
 
-##### Look at CC Data #####
+# ~~ Look at CC Data ------------------------------------------------
 # look at relationship between instrument (treat) and X (video duration)
 # in CC data
 dcc %>% group_by(treat) %>%
@@ -848,7 +831,7 @@ summary( lm( passCheck ~ treat, data = dcc) )
 my_ivreg(dat = dcc)
 
 
-##### IV for MI Datasets #####
+# ~~ IV for MI Datasets ------------------------------------------------
 mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
 mi.res = do.call(what = rbind, mi.res)
 raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
@@ -888,4 +871,3 @@ update_result_csv( name = "mainY IV g lo",
 update_result_csv( name = "mainY IV g hi",
                    value = round( SMD$hi, 2 ) )
 
-s

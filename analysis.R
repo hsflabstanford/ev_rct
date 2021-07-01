@@ -484,7 +484,7 @@ section = 4
 if ( exists("res.raw") ) rm(res.raw)
 
 ( res.CC = analyze_all_outcomes(missMethod = "CC") )
-res.MI = analyze_all_outcomes(missMethod = "MI")
+( res.MI = analyze_all_outcomes(missMethod = "MI") )
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -553,7 +553,7 @@ if ( study %in% c(1,3) ) {
   ##### Save Both Raw and Cleaned-Up Results Tables #####
   # in order to have the unrounded values
   setwd(results.dir)
-  write.csv(res.raw, "effect_mods_mi.csv")
+  write.csv(res.raw, "effect_mods_MI.csv")
   
   # cleaned-up version
   # round it
@@ -570,7 +570,7 @@ if ( study %in% c(1,3) ) {
   
   
   setwd(results.dir)
-  write.csv(res.nice, "effect_mods_mi_pretty.csv")
+  write.csv(res.nice, "effect_mods_MI_pretty.csv")
   
   
   ##### Sanity Check #####

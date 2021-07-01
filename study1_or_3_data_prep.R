@@ -675,7 +675,7 @@ impModelVars = w1Vars[ !w1Vars == "state" ]
 # #   scale_fill_discrete(name = "Catholic School")
 
 
-
+# DON'T IMPUTE HERE for Study 3; that one needs to be handled AFTER making derived vars
 if ( impute.from.scratch == TRUE & study != 3 ) {
   
   ##### Generate Imputations #####

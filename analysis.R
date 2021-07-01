@@ -15,7 +15,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 3
+study = 1
 overwrite.res = TRUE
 
 
@@ -26,7 +26,8 @@ source("helper_analysis.R")
 
 # makes a bunch of global variables for different directories, lists of variables, etc.,
 #  and reads in datasets
-prelims(study = study, overwrite.res = overwrite.res)
+prelims(study = study,
+        overwrite.res = overwrite.res)
 if ( overwrite.res == TRUE ) wr()
 
 
@@ -50,19 +51,23 @@ CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d 
 # for keeping results csv organized
 section = 2
 
-##### Sample Sizes and Retention (For Study 1) #####
-update_result_csv( name = paste( "N wave 1", study ),
+# ~ Sample Sizes and Retention (For Study 1 & 3) ------------------------------------------------
+update_result_csv( name = "N wave 1",
                    value = nrow(d) )
 
 
-if ( study == 1 ){
+if ( study %in% c(1,3) ){
   
-  update_result_csv( name = paste( "N wave 2", study ),
+  update_result_csv( name = "N wave 2",
                      value = nrow(dcc) )
   
   # differential attrition by treatment group and demographics
-  string = paste( "!is.na(d$mainY) ~ ", paste( "treat +", effect.mods, collapse=" + "), sep = "" )
-  missMod = glm( eval( parse( text = string ) ), family = binomial(link="log"), data = d )
+  #@NOT WORKING FOR STUDY 1
+  string = paste( "!is.na(d$mainY) ~ ", paste( "treat +", paste( effect.mods, collapse=" + "), sep = "" ) )
+  missMod = glm( eval( parse( text = string ) ),
+                 family = binomial(link="log"),
+                 start = rep(0, 2 + length(effect.mods) ),
+                 data = d )
   summary(missMod)
   library(sandwich)
   coeftest(missMod, vcov = vcovHC(missMod, type = "HC0"))
@@ -79,6 +84,10 @@ if ( study == 1 ){
   update_result_csv( name = paste( "Retention perc treat", t$treat ),
                      value = round(t$Pmiss * 100, 0) )
   
+}
+
+
+if ( study == 1 ) {
   # follow-up times
   update_result_csv( name = "Perc fuDays 12 to 14",
                      value = round( mean(d$fuDays <= 12, na.rm = TRUE) * 100, 0) )
@@ -94,9 +103,8 @@ if ( study == 1 ){
   
   update_result_csv( name = "Max fuDays",
                      value = max(d$fuDays, na.rm = TRUE) )
-
-
 }
+
 
 # ~ Table 1 (Demographics Among All Wave 1 Subjects) ------------------------------------------------
 
@@ -230,14 +238,12 @@ if ( study == 2 ){
 
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                            3. COMPLETE-CASE ANALYSES
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# 3. COMPLETE-CASE ANALYSES --------------------------------------
 
 section = 3
 
 
-# ~~~ QUICK LOOK AT MAIN RESULTS FOR STUDY 3 -----------
+# ~~~ MOVE THIS: QUICK LOOK AT MAIN RESULTS FOR STUDY 3 -----------
 #bm: Look at missingness by fitting missing propensity model
 # CC analysis, all subjects
 # estimated treatment effect is about 5 oz in the desired direction
@@ -360,6 +366,7 @@ if ( study == 2 ){
 }
 
 
+# should be redundant with analyze_all_outcomes EXCEPT for study 2
 # ~~ Save Both Raw and Cleaned-Up Results Tables ------------------------------------------------
 
 # in order to have the unrounded values
@@ -482,6 +489,8 @@ if ( exists("res.raw") ) rm(res.raw)
 
 ( res.CC = analyze_all_outcomes(missMethod = "CC") )
 ( res.MI = analyze_all_outcomes(missMethod = "MI") )
+
+#bm: I think we can delete the earlier CC part now... :)
 
 
 # 5. TABLE 3: EFFECT MODIFIERS ------------------------------------------------

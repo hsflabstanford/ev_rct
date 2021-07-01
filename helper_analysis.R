@@ -62,15 +62,20 @@ prelims = function(study, overwrite.res) {
   if (study %in% c(1,3)){
     d <<- read.csv("prepped_merged_data.csv")
     
+
+    
     # complete cases wrt mainY
     # might still have sporadic missing data elsewhere
-    dcc = d %>% filter( !is.na(mainY) )
+    dcc <<- d %>% filter( !is.na(mainY) )
     nrow(dcc)
     
     table(is.na(d$beef))
   }
   
-  if (study == 2) d <<- read.csv("prepped_data.csv"); dcc <<- d
+  if (study == 2) {
+    d <<- read.csv("prepped_data.csv")
+    dcc <<- d
+  }
   
   # read in imputations
   if ( study %in% c(1,3) ) {
@@ -168,9 +173,19 @@ analyze_all_outcomes = function(missMethod) {
       
       # Study 1: t-test without controlling for anything
       #@NOT DESIGNED TO WORK WITH MISSMETHOD == CC
-      if ( study == 1 & missMethod == "MI"){
-        mi.res = lapply( imps, function(.d) my_ttest(yName = i,
-                                                     dat = .d) )
+      if ( study == 1 ){
+        
+        if ( missMethod == "MI" ) {
+          mi.res = lapply( imps, function(.d) my_ttest(yName = i,
+                                                       dat = .d) )
+        }
+        
+        if ( missMethod == "CC" ) {
+          mi.res = my_ttest(yName = i,
+                             dat = d)
+        }
+        
+        
       }
       
       # Study 3: controlling for randomization strata
@@ -287,6 +302,19 @@ analyze_all_outcomes = function(missMethod) {
         new.row$group.specific = "mainY"
       }
       
+      
+      # for CC analyses only, add raw means and medians
+      #@NOTE: FOR STUDY 3, DIFF IN MEANS WON'T EXACTLY MATCH EST BECAUSE EST CONTROLS
+      #  FOR STRATIFICATION VARS
+      if ( missMethod == "CC" ) {
+        new.row = new.row %>% add_column( .before = 1,
+                                          mn0 = mean( .d[[i]][ .d$treat == 0], na.rm = TRUE ),
+                                          mn1 = mean( .d[[i]][ .d$treat == 1], na.rm = TRUE ),
+                                          med0 = median( .d[[i]][ .d$treat == 0], na.rm = TRUE ),
+                                          med1 = median( .d[[i]][ .d$treat == 1], na.rm = TRUE ) )
+      }
+      
+      
       # add name of this analysis
       string = paste(i, missMethod, sep = " ")
       if ( study == 3 & i == "mainY" ) string = c( string, paste( "mainY targetDemoSimple-subset ",
@@ -308,17 +336,30 @@ analyze_all_outcomes = function(missMethod) {
     if ( missMethod == "MI") write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
     if ( missMethod == "CC") write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
     
-    #browser()
-    
+  
     # cleaned-up version
     # round it
     res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "group", "group.specific" ) ], function(x) round(x,2) )
     
-    res.nice = data.frame( analysis = res.raw$analysis,
-                           est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
-                           g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
-                           pval = res.raw$pval,
-                           pvalBonf = res.raw$pvalBonf )
+    if ( missMethod == "MI") {
+      res.nice = data.frame( analysis = res.raw$analysis,
+                             est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
+                             g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
+                             pval = res.raw$pval,
+                             pvalBonf = res.raw$pvalBonf )
+    }
+
+    if ( missMethod == "CC") {
+      res.nice = data.frame( analysis = res.raw$analysis,
+                             mn0 = res.raw$mn0,
+                             mn1 = res.raw$mn1,
+                             med0 = res.raw$med0,
+                             med1 = res.raw$med1,
+                             est = stat_CI( res.raw$est, res.raw$lo, res.raw$hi),
+                             g.est = stat_CI( res.raw$g, res.raw$g.lo, res.raw$g.hi),
+                             pval = res.raw$pval,
+                             pvalBonf = res.raw$pvalBonf )
+    }
     
     
     setwd(results.dir)

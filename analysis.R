@@ -1,21 +1,28 @@
 
+#BM: ANALYZE_ALL_OUTOCMES SEEMS TO RUN FOR ALL 3 STUDIES, BUT REST OF SCRIPT MAY NOT. 
+# GO THROUGH EACH STUDY TO SEE WHAT RUNS, THEN LATER WRITE SANITY CHECKS.
+# FOR CC SANITY CHECKS, COULD USE THE SCRIPT I DELETED ("**" COMMIT ON GIT)
+
+# BM: doing this now for Study 1
 
 # 0. PRELIMINARIES ------------------------------------------------
 
-# Analyzes either study 2 or study 3 depending on the argument to prelims()
+# Analyzes Study 1, 2, or 3 depending on the argument to prelims()
 #  specified below. 
 
 # Meta-notes about this script:
 #  - Each section is self-contained. You can start from anywhere by first running prelims() and then 
 #   running just that section.
 
-# bm: This code still needs more sanity checks. Data prep already has its own sanity checks
+#@IMPORTANT: This code still needs more sanity checks, especially analyze_all_outcomes!
+# Data prep already has its own sanity checks
 #  in a separate file. 
+
 
 rm( list = ls() )
 
 # set your parameters here
-study = 2
+study = 1
 overwrite.res = TRUE
 
 

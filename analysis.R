@@ -22,8 +22,13 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 2
+
+# should we delete existing stats_for_paper.csv and start over?
+# note: since studies all write to same results file, this 
+#  will also wipe other studies' results
 overwrite.res = TRUE
+
 run.sanity = TRUE
 
 
@@ -695,56 +700,60 @@ if ( study == 1 ) {
 # 2013) if relevant methodological extensions, currently underway, are ready at the time of
 # analysis.
 
+# I think this is only relevant for Study 1? And maybe 3?
 
-# ~~ Look at CC Data ------------------------------------------------
-# look at relationship between instrument (treat) and X (video duration)
-# in CC data
-dcc %>% group_by(treat) %>%
-  summarise( sum( passCheck, na.rm = TRUE) )
-table(dcc$treat, dcc$passCheck)
-# first-stage model (linear probability model; ignore the inference):
-summary( lm( passCheck ~ treat, data = dcc) )
-
-my_ivreg(dat = dcc)
-
-
-# ~~ IV for MI Datasets ------------------------------------------------
-mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
-mi.res = do.call(what = rbind, mi.res)
-raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
-SMD = mi_pool(ests = mi.res$g, ses = mi.res$g.se) 
-
-# look at this manually to make sure we don't have a weak instrument
-#  (though that seems inconceivable in this case):
-mi.res$stage1.pval
-
-# sanity check
-# confirm the fact that the first-stage model has the same p-value for every imputation
-# first-stage model (linear probability model; ignore the inference):
-summary( lm( passCheck ~ treat, data = imps[[3]]) )
-# this seems to be where where the weak instruments p-value is coming from
-summary( ivreg(mainY ~ passCheck | treat, data = imps[[3]]), diagnostics = TRUE )
-
-
-
-update_result_csv( name = "mainY IV diff",
-                   value = round( raw$est, 2 ) )
-
-update_result_csv( name = "mainY IV lo",
-                   value = round( raw$lo, 2 ) )
-
-update_result_csv( name = "mainY IV hi",
-                   value = round( raw$hi, 2 ) )
-
-update_result_csv( name = "mainY IV pval",
-                   value = format_pval( raw$pval, 3 ) )
-
-update_result_csv( name = "mainY IV g",
-                   value = round( SMD$est, 2 ) )
-
-update_result_csv( name = "mainY IV g lo",
-                   value = round( SMD$lo, 2 ) )
-
-update_result_csv( name = "mainY IV g hi",
-                   value = round( SMD$hi, 2 ) )
-
+if ( study == 1 ) {
+  # ~~ Look at CC Data ------------------------------------------------
+  # look at relationship between instrument (treat) and X (video duration)
+  # in CC data
+  dcc %>% group_by(treat) %>%
+    summarise( sum( passCheck, na.rm = TRUE) )
+  table(dcc$treat, dcc$passCheck)
+  # first-stage model (linear probability model; ignore the inference):
+  summary( lm( passCheck ~ treat, data = dcc) )
+  
+  my_ivreg(dat = dcc)
+  
+  
+  # ~~ IV for MI Datasets ------------------------------------------------
+  mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
+  mi.res = do.call(what = rbind, mi.res)
+  raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
+  SMD = mi_pool(ests = mi.res$g, ses = mi.res$g.se) 
+  
+  # look at this manually to make sure we don't have a weak instrument
+  #  (though that seems inconceivable in this case):
+  mi.res$stage1.pval
+  
+  # sanity check
+  # confirm the fact that the first-stage model has the same p-value for every imputation
+  # first-stage model (linear probability model; ignore the inference):
+  summary( lm( passCheck ~ treat, data = imps[[3]]) )
+  # this seems to be where where the weak instruments p-value is coming from
+  summary( ivreg(mainY ~ passCheck | treat, data = imps[[3]]), diagnostics = TRUE )
+  
+  
+  
+  update_result_csv( name = "mainY IV diff",
+                     value = round( raw$est, 2 ) )
+  
+  update_result_csv( name = "mainY IV lo",
+                     value = round( raw$lo, 2 ) )
+  
+  update_result_csv( name = "mainY IV hi",
+                     value = round( raw$hi, 2 ) )
+  
+  update_result_csv( name = "mainY IV pval",
+                     value = format_pval( raw$pval, 3 ) )
+  
+  update_result_csv( name = "mainY IV g",
+                     value = round( SMD$est, 2 ) )
+  
+  update_result_csv( name = "mainY IV g lo",
+                     value = round( SMD$lo, 2 ) )
+  
+  update_result_csv( name = "mainY IV g hi",
+                     value = round( SMD$hi, 2 ) )
+  
+  
+}

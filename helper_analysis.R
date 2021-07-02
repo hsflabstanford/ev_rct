@@ -20,17 +20,19 @@ vr = function(){
 # study: 1 or 2
 prelims = function(study, overwrite.res) {
   
-  ##### Packages #####
-  library(dplyr)
-  library(readr)
-  library(tableone)
-  library(ggplot2)
-  library(tibble)
-  library(sandwich)
-  library(EValue)
-  library(metafor)
-  library(AER)
-  library(harmonicmeanp)
+  # ##### Packages #####
+  # # commented out because we're using renv
+  # library(dplyr)
+  # library(readr)
+  # library(tableone)
+  # library(ggplot2)
+  # library(tibble)
+  # library(sandwich)
+  # library(EValue)
+  # library(metafor)
+  # library(AER)
+  # library(harmonicmeanp)
+  # library(testthat)
   
   study <<- study
   # for dir paths
@@ -287,9 +289,7 @@ analyze_all_outcomes = function(missMethod) {
         
       }  # end study == 3 & i == "mainY"
       
-      
-      #bm
-      
+ 
       # Study 2 only: also do analysis for the binary variable
       # intentionCont here because we only want to do this extra analysis once, not
       #  for every outcome

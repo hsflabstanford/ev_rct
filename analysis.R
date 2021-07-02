@@ -3,7 +3,8 @@
 # GO THROUGH EACH STUDY TO SEE WHAT RUNS, THEN LATER WRITE SANITY CHECKS.
 # FOR CC SANITY CHECKS, COULD USE THE SCRIPT I DELETED ("**" COMMIT ON GIT)
 
-# BM: doing this now for Study 1
+# BM: was writing sanity checks. Study 3 passes sanity checks for main analyses. 
+
 
 # 0. PRELIMINARIES ------------------------------------------------
 
@@ -15,8 +16,7 @@
 #   running just that section.
 
 #@IMPORTANT: This code still needs more sanity checks, especially analyze_all_outcomes!
-# Data prep already has its own sanity checks
-#  in a separate file. 
+# Data prep already has its own sanity checks in a separate file. 
 
 
 rm( list = ls() )
@@ -51,7 +51,7 @@ prelims(study = study,
 if ( overwrite.res == TRUE ) wr()
 
 
-# 1. SANITY CHECKS  ------------------------------------------------
+# 1. SANITY CHECKS ------------------------------------------------
 
 # Table 1 (Wave 1)
 CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
@@ -309,6 +309,90 @@ if ( study %in% c(1,3)) {
 #                include.rownames = FALSE ) )
 
 
+
+# ~~ Sanity Checks on Main Analyses
+
+
+# Manually reproduce est and SE in res.raw for a single outcome
+
+
+# reproduce MI results for study 3
+# controls for targetDemographics
+if ( run.sanity == TRUE & study == 3 ) {
+
+  # names of outcomes to check
+  toCheck = unlist( lapply( strsplit( res.MI$res.raw$analysis, " MI" ), function(x) x[[1]] ) )
+  
+  # check MI results (est and CI)
+  for (yName in toCheck) {
+    
+    my.mi.res = lapply( imps, function(.imp) {
+      string = paste( yName, " ~ treat + targetDemographics", sep = "" )
+      # handle the weird one
+      if ( yName == "mainY targetDemoSimple-subset") {
+        string = paste( "mainY ~ treat + targetDemographics", sep = "" )
+        .imp = .imp[ .imp$targetDemoSimple == TRUE, ]
+      }
+        
+      ols = lm( eval( parse( text = string ) ), data = .imp )
+      est = coef(ols)["treat"]
+      
+      # robust SE
+      se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+      
+      t = as.numeric( abs(est / se) )
+      pval = 2 * ( 1 - pt(t, df = ols$df.residual) )
+      
+      # only extract this one coefficient
+      return( data.frame( est = est, se = se, pval = pval ) )
+    }  ) 
+    
+    my.mi.res = do.call( rbind, my.mi.res )
+    
+    # pool via Rubin's Rules and confirm above results
+    M = length(imps)
+    my.est = mean(my.mi.res$est)
+    # between-imp variance
+    B = var(my.mi.res$est)
+    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
+    
+    expect_equal( round( my.est, 2),
+                  res.MI$res.raw$est[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    expect_equal( round( my.se, 2 ),
+                  res.MI$res.raw$se[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    
+    cat( paste("\nJust checked Study 3, MI, outcome", yName) )
+  }
+  
+  # check CC results
+  for (yName in toCheck) {
+    dat = dcc
+    string = paste( yName, " ~ treat + targetDemographics", sep = "" )
+    # handle the weird one
+    if ( yName == "mainY targetDemoSimple-subset") {
+      string = paste( "mainY ~ treat + targetDemographics", sep = "" )
+      dat = dat[ dat$targetDemoSimple == TRUE, ]
+    }  
+    
+    
+    ols = lm( eval( parse( text = string ) ), data = dat )
+    est = coef(ols)["treat"]
+    
+    # robust SE
+    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+
+    expect_equal( as.numeric(round( est, 2)),
+                  res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    expect_equal( round( se, 2 ),
+                  res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    cat( paste("\nJust checked Study 3, CC, outcome", yName) )
+  }
+}
+
+
+
+
 # ~~ One-Off Stats for Study 2 ------------------------------------------------
 
 if ( study == 2 ) {
@@ -524,14 +608,14 @@ if ( study %in% c(1,3) ) {
   # round it
   # save row names before they get removed by dplyr
   rowNames = row.names(res.raw)
+  # rounded version
   res.raw2 = res.raw %>% mutate_at( names(res.raw), function(x) round(x,2) )
   
   res.nice = data.frame( coef = rowNames,
                          est = stat_CI( res.raw2$est, res.raw2$lo, res.raw2$hi),
                          g.est = stat_CI( res.raw2$g.est, res.raw2$g.lo, res.raw2$g.hi),
                          pval = res.raw2$pval,
-                         pvalBonf = res.raw2$pvalBonf
-  )
+                         pvalBonf = res.raw2$pvalBonf )
   
   
   setwd(results.dir)
@@ -540,16 +624,14 @@ if ( study %in% c(1,3) ) {
   
   # ~~ Sanity Check ----
   # manually reproduce all results for a single coefficient
-  if ( run.sanity == TRUE ) {
+  if ( study == 1 & run.sanity == TRUE ) {
     # which coefficient index (including intercept)
     i = 2
     
     my.mi.res = lapply( imps, function(.imp) {
-      if ( study == 1 ) string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
+      string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
       
-      if ( study == 3 ) string = paste( yName, " ~ ",
-                                        paste( "young + treat*", effect.mods, collapse=" + "),
-                                        sep = "" )
+     
       ols = lm( eval( parse( text = string ) ), data = .imp )
       est = coef(ols)[i]
       
@@ -572,11 +654,40 @@ if ( study %in% c(1,3) ) {
     B = var(my.mi.res$est)
     my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
     
-    expect_equal( my.est, res.raw$est[i] )
-    expect_equal( my.se, res.raw$se[i] )
+    expect_equal( my.est, res.raw2$est[i] )
+    expect_equal( my.se, res.raw2$se[i] )
   }
   
+  if ( study == 3 & run.sanity == TRUE ) {
   
+    my.mi.res = lapply( imps, function(.imp) {
+    
+      string = "mainY ~ young + treat*targetDemoSimple"
+      ols = lm( eval( parse( text = string ) ), data = .imp )
+      est = coef(ols)["treat:targetDemoSimpleTRUE"]
+      
+      # robust SE
+      se = sqrt( vcovHC( ols, type="HC0")["treat:targetDemoSimpleTRUE", "treat:targetDemoSimpleTRUE"] )
+      
+      t = as.numeric( abs(est / se) )
+      pval = 2 * ( 1 - pt(t, df = ols$df.residual) )
+      
+      # only extract this one coefficient
+      return( data.frame( est = est, se = se, pval = pval ) )
+    }  ) 
+    
+    my.mi.res = do.call( rbind, my.mi.res )
+    
+    # pool via Rubin's Rules and confirm above results
+    M = length(imps)
+    my.est = mean(my.mi.res$est)
+    # between-imp variance
+    B = var(my.mi.res$est)
+    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
+    
+    expect_equal( my.est, res.raw$est["treat:targetDemoSimpleTRUE"] )
+    expect_equal( my.se, res.raw$se["treat:targetDemoSimpleTRUE"] )
+  }
 
   # ~ One-Off Stats for Paper ----
 
@@ -715,7 +826,7 @@ if ( (study == 1) & run.sanity == TRUE ) {
 update_result_csv( name = "Perc aware tx group",
                    value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ], na.rm = TRUE ), 0 ) )
 
-update_result_csv( name = "Perc aware cntrl group",
+update_result_csv( name = "Perc aware cntrl group",';'
                    value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ], na.rm = TRUE ), 0 ) )
 
 
@@ -828,3 +939,29 @@ if ( study == 1 ) {
   
   
 }
+
+
+
+
+
+# ~ DUMB VERSIONS OF MAIN ANALYSES ------------------------------------------------
+
+# CC only
+# these are just as additional sanity checks and won't exactly match the results in paper
+
+if ( study == 3 ) {
+  
+  # mainY treatment effect
+  
+  # targetDemoSimple subset
+  
+  #bm: stopped here
+}
+
+
+
+
+
+
+
+

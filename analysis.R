@@ -22,7 +22,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 2
+study = 3
 
 # should we delete existing stats_for_paper.csv and start over?
 # note: since studies all write to same results file, this 
@@ -382,6 +382,77 @@ if ( study == 2 ) {
 }
 
 
+# ~~ One-Off Stats for Study 3 ------------------------------------------------
+
+# "We will report descriptively on the distribution of responses to the new intervention engagement items above, but will not include them in primary analyses. We may conduct post hoc exploratory analyses with these variables."
+
+if ( study == 3 ) {
+  
+  # proportion of subjects making pledges 
+  pledgeVars = names(dcc)[ grepl(pattern = "pledge", x = names(dcc)) ]
+  pledgeVars = pledgeVars[ !pledgeVars %in% c("pledgeDateGoal", "pledgeStrategies", "pledgeStrategiesFreeText")]
+  
+  # percent of subjects RANDOMIZED to treat=1 who made a pledge about each food
+  #  if someone was randomized, then dropped out of W1, but then came back for W2
+  # conservatively count these people as not having made a pledge
+  # these people have "" for the pledge
+  t = sort( dcc %>%
+              filter(treat == 1) %>%
+              summarise_at( .vars = pledgeVars,
+                            .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
+                                                                          "Yes, I pledge to stop eating this food") ) ) ),
+            decreasing = TRUE )
+  
+  # confirm sample sizes
+  temp = dcc %>%
+    filter(treat == 1) %>%
+    summarise_at( .vars = pledgeVars,
+                  .funs = function(x) length(x) )
+  expect_equal( all.equal( unique( as.numeric(temp) ), sum(dcc$treat == 1) ),
+                TRUE )
+  
+  t = sort(t)
+  
+  update_result_csv( name = paste( "Perc any pledge", names(t) ),
+                     value = as.numeric(t) )
+  
+  
+  # any "eliminate" pledge or any "reduce" pledge
+  update_result_csv( name = paste( "Perc at least one pledge" ),
+                     value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE | dcc$madeReducePledge[ dcc$treat == 1] == TRUE ) ) )
+
+  update_result_csv( name = paste( "Perc at least one eliminate pledge" ),
+                     value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE) ) )
+  
+  update_result_csv( name = paste( "Perc at least one reduce pledge" ),
+                     value = round( 100*mean(dcc$madeReducePledge[ dcc$treat == 1] == TRUE) ) )
+  
+  
+  # table( dcc$pledgeOtherMeat[dcc$treat==1],
+  #        dcc$madeReducePledge[ dcc$treat == 1] )
+  
+}
+
+#bm: stopped here with re-running Study 3 code :)
+
+# for sanity check, maybe
+# dcc %>%
+#   filter(treat == 1) %>%
+#   summarise( mean(pledgeChicken %in% c("Yes, I pledge to eat this food less often",
+#                                        "Yes, I pledge to stop eating this food") ) )
+# 
+# 
+# 
+# # note that this could be equal to "" (i.e., not answered)
+# #  if someone was randomized, then dropped out of W1, 
+# #  but then came back for W2
+# # conservatively count these people as not having made a pledge
+# table(dcc$pledgeChicken[dcc$treat==1])
+# (14+40)/(14+40+17+30)
+# 
+# 
+
+
 
 # 5. TABLE 3: EFFECT MODIFIERS ------------------------------------------------
 
@@ -589,7 +660,7 @@ print( xtable( res.nice), include.rownames = FALSE )
 
 # ~ Sanity Check: Compare CC to MI ------------------------------------------------
 
-if ( study == 1 & run.sanity == TRUE ) {
+if ( (study == 1) & run.sanity == TRUE ) {
   setwd(results.dir)
   res.cc = read.csv("effect_mods_cc.csv")
   res.mi = read.csv("effect_mods_mi.csv")

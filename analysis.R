@@ -1,11 +1,15 @@
 
-#BM: ANALYZE_ALL_OUTOCMES SEEMS TO RUN FOR ALL 3 STUDIES, BUT REST OF SCRIPT MAY NOT. 
-# GO THROUGH EACH STUDY TO SEE WHAT RUNS, THEN LATER WRITE SANITY CHECKS.
+
+# BM: Running code for each study to make sure it runs without errors and updating Overleaf,
+#  but NOT yet writing new sanity checks. 
+# Tables in main text will be submitted as Excel files.
+
 # FOR CC SANITY CHECKS, COULD USE THE SCRIPT I DELETED ("**" COMMIT ON GIT)
 
-# BM: was writing sanity checks. Study 3 passes sanity checks for main analyses. 
+# This script writes results locally and to Overleaf
 
 
+ 
 # 0. PRELIMINARIES ------------------------------------------------
 
 # Analyzes Study 1, 2, or 3 depending on the argument to prelims()
@@ -22,7 +26,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 3
+study = 1
 
 # should we delete existing stats_for_paper.csv and start over?
 # note: since studies all write to same results file, this 
@@ -31,7 +35,7 @@ overwrite.res = TRUE
 
 run.sanity = TRUE
 
-
+# other packages are loaded by prelims() below
 library(here)
 code.dir = here("Code (git)")
 setwd(code.dir)
@@ -43,6 +47,8 @@ source("helper_analysis.R")
 library(renv)
 setwd(here())
 restore()
+# only if you want to update the renv file:
+# snapshot()
 
 # makes a bunch of global variables for different directories, lists of variables, etc.,
 #  and reads in datasets
@@ -97,7 +103,7 @@ if ( study %in% c(1,3) ){
   nullModel = glm( is.na(mainY) ~ 1,
                    data = d,
                    family = binomial(link = "logit") )
-  # entire missingness model not very predictive
+  # p-value for entire missingness model
   ftest = anova(missMod, nullModel, test = "Chisq" )
   update_result_csv( name = paste( "Logit missingness model global pval" ),
                      value = format.pval(ftest$`Pr(>Chi)`[2], 1 ) )
@@ -133,6 +139,8 @@ if ( study == 1 ) {
   update_result_csv( name = "Max fuDays",
                      value = max(d$fuDays, na.rm = TRUE) )
 }
+
+
 
 
 # ~ Table 1 (Demographics Among All Wave 1 Subjects) ------------------------------------------------
@@ -221,6 +229,8 @@ if ( study == 1 ){
                      value = round( 100 * mean(d$passCheck[ d$treat == 0] == TRUE), 0 ) )
   
 }
+
+
 
 
 # ~ Plot Complete-Case Treatment Group Differences ------------------------------------------------
@@ -625,7 +635,7 @@ if ( study %in% c(1,3) ) {
   # ~~ Sanity Check ----
   # manually reproduce all results for a single coefficient
   if ( study == 1 & run.sanity == TRUE ) {
-    # which coefficient index (including intercept)
+    # coefficient index for treat is 2 (including intercept)
     i = 2
     
     my.mi.res = lapply( imps, function(.imp) {
@@ -647,15 +657,23 @@ if ( study %in% c(1,3) ) {
     
     my.mi.res = do.call( rbind, my.mi.res )
     
+    # check within-imp SEs
+    existing.ses = unlist( lapply( mi.res, FUN = function(table) table[i, "se"]) )
+    expect_equal( existing.ses, my.mi.res$se )
+    
+    # check between-imp variance
+    B = var(my.mi.res$est)
+    existing.B = var( unlist( lapply( mi.res, FUN = function(table) table[i, "est"]) ) )
+    expect_equal(existing.B, B)
+    
     # pool via Rubin's Rules and confirm above results
     M = length(imps)
     my.est = mean(my.mi.res$est)
-    # between-imp variance
-    B = var(my.mi.res$est)
+    
     my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
     
-    expect_equal( my.est, res.raw2$est[i] )
-    expect_equal( my.se, res.raw2$se[i] )
+    expect_equal( my.est, res.raw2$est[i], tol = 0.001 )
+    expect_equal( my.se, res.raw2$se[i], tol = 0.001 )
   }
   
   if ( study == 3 & run.sanity == TRUE ) {

@@ -20,19 +20,19 @@ vr = function(){
 # study: 1 or 2
 prelims = function(study, overwrite.res) {
   
-  # ##### Packages #####
-  # # commented out because we're using renv
-  # library(dplyr)
-  # library(readr)
-  # library(tableone)
-  # library(ggplot2)
-  # library(tibble)
-  # library(sandwich)
-  # library(EValue)
-  # library(metafor)
-  # library(AER)
-  # library(harmonicmeanp)
-  # library(testthat)
+  ##### Packages #####
+  # commented out because we're using renv
+  library(dplyr)
+  library(readr)
+  library(tableone)
+  library(ggplot2)
+  library(tibble)
+  library(sandwich)
+  library(EValue)
+  library(metafor)
+  library(AER)
+  library(harmonicmeanp)
+  library(testthat)
   
   study <<- study
   # for dir paths

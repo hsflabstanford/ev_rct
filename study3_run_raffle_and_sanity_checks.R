@@ -154,4 +154,22 @@ w1.winners = sample(w1.candidates, 10)
 setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data")
 write.csv(w1.winners, "study3_w1_raffle_winners_IDENTIFIABLE_INFO.csv")
 
+# ~ Run raffle for second wave --------------------------------------
+
+# second part of logic means they finished second wave
+w2.candidates = d %>% filter( email != "" & problemsBin.y != "" & wantsRaffle == "Yes" ) %>%
+  select(email, StartDate.x)
+
+w2.candidates$StartDate.x
+
+# use the last few chronologically to avoid issue with gift card amount mistake
+w2.winners = w2.candidates[ (nrow(w2.candidates) - 4):nrow(w2.candidates), ]
+dim(w2.winners)
+w2.winners$StartDate.x
+
+
+setwd("~/Dropbox/Personal computer/Independent studies/2020/EatingVeg RCT/Linked to OSF (EatingVeg)/Data")
+write.csv(w2.winners$email, "study3_w2_raffle_winners_IDENTIFIABLE_INFO.csv")
+
+
 

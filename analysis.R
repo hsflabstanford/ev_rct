@@ -313,10 +313,22 @@ if ( study %in% c(1,3)) {
 
 
 
-# # for pasting into TeX supplement - NEEDED?
-# library(xtable)
-# print( xtable( res.nice,
-#                include.rownames = FALSE ) )
+# for pasting into TeX supplement
+
+if ( study == 1 ) {
+  
+  setwd(results.dir)
+  
+  short = res.CC$res.nice %>% select(analysis,
+                                     est,
+                                     g.est,
+                                     pval)
+  write.table( print( xtable( short,
+                       include.rownames = FALSE ) ),
+               file = "table2_trt_effect_all_outcomes_cc_pretty_tex.txt"
+  )
+}
+
 
 
 
@@ -725,15 +737,20 @@ if ( study %in% c(1,3) ) {
     varNames = row.names(res.raw)[ grepl( x = row.names(res.raw), pattern = ":" ) ]
     # can't count coefficients for both political categories
     varNames = varNames[ !varNames == "treat:party2b.Neutral"]
+    
+    if ( any( res.raw$est[ row.names(res.raw) %in% varNames ] > 0 ) ) {
+      stop("Calculation of best effect modifiers below won't work because some coefs were positive!")
+    }
     est.best = sum( res.raw$est[ row.names(res.raw) %in% varNames ] )
     g.best = sum( res.raw$g.est[ row.names(res.raw) %in% varNames ] )
     
-    update_result_csv( name = "Best effect mods est",
-                       value = round( est.best, 2 ) )
+    # use abs value for easier reporting in paper
+    update_result_csv( name = "Best effect mods absolute est",
+                       value = round( abs(est.best), 2 ) )
     
     
-    update_result_csv( name = "Best effect mods g",
-                       value = round( g.best, 2 ) )
+    update_result_csv( name = "Best effect mods absolute g",
+                       value = round( abs(g.best), 2 ) )
   }
 
   
@@ -844,7 +861,7 @@ if ( (study == 1) & run.sanity == TRUE ) {
 update_result_csv( name = "Perc aware tx group",
                    value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ], na.rm = TRUE ), 0 ) )
 
-update_result_csv( name = "Perc aware cntrl group",';'
+update_result_csv( name = "Perc aware cntrl group",
                    value = round( 100 * mean(dcc$aware[ dcc$treat == 0 ], na.rm = TRUE ), 0 ) )
 
 

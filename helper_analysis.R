@@ -33,6 +33,7 @@ prelims = function(study, overwrite.res) {
   library(AER)
   library(harmonicmeanp)
   library(testthat)
+  library(xtable)
   
   study <<- study
   # for dir paths

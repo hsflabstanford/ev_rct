@@ -8,8 +8,9 @@
 
 # This script writes results locally and to Overleaf
 
+# To do:
+#  - When writing tables, keep names consistent with paper
 
- 
 # 0. PRELIMINARIES ------------------------------------------------
 
 # Analyzes Study 1, 2, or 3 depending on the argument to prelims()
@@ -26,12 +27,12 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 2
 
 # should we delete existing stats_for_paper.csv and start over?
-# note: since studies all write to same results file, this 
-#  will also wipe other studies' results
-overwrite.res = TRUE
+# note: since studies all write to same results file,
+#  setting to TRUE will also wipe other studies' results
+overwrite.res = FALSE
 
 run.sanity = TRUE
 
@@ -204,13 +205,13 @@ if ( study == 1 ){
   table(d$covid)
   update_result_csv( name = "Perc COVID less choice",
                      value = round( 100 * mean(d$covid[ !is.na(d$covid) ] %in% c("a.muchLess",
-                                                              "b.somewhatLess",
-                                                              "c.slightlyLess") ), 0 ) )
+                                                                                 "b.somewhatLess",
+                                                                                 "c.slightlyLess") ), 0 ) )
   
   update_result_csv( name = "Perc COVID more choice",
                      value = round( 100 * mean(d$covid[ !is.na(d$covid) ] %in% c("e.slightlyMore",
-                                                              "f.somewhatMore",
-                                                              "g.muchMore") ), 0 ) )
+                                                                                 "f.somewhatMore",
+                                                                                 "g.muchMore") ), 0 ) )
   
   update_result_csv( name = "Perc COVID no change",
                      value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 0 ) )
@@ -275,6 +276,8 @@ if ( study == 2 ){
 
 # 4. TABLE 2: ALL TREATMENT EFFECTS (MI AND CC; ALL OUTCOMES)  ------------------------------------------------
 
+# this script automatically knows that Study 2 also needs the intention outcome measures
+
 # Primary analyses: We will conduct a 2-sample Welch’s t-test of total consumption by treatment group, reporting
 # the mean difference, a 95% confidence interval, and a p-value treated as a continuous measure.
 # We expect that errors may be highly skewed and heteroskedastic. The Welch’s t-test
@@ -314,8 +317,8 @@ if ( study %in% c(1,3)) {
 
 
 # for pasting into TeX supplement
-
-if ( study == 1 ) {
+# maybe also Study 3?
+if ( study %in% c(1,2) ) {
   
   setwd(results.dir)
   
@@ -324,7 +327,7 @@ if ( study == 1 ) {
                                      g.est,
                                      pval)
   write.table( print( xtable( short,
-                       include.rownames = FALSE ) ),
+                              include.rownames = FALSE ) ),
                file = "table2_trt_effect_all_outcomes_cc_pretty_tex.txt"
   )
 }
@@ -341,7 +344,7 @@ if ( study == 1 ) {
 # reproduce MI results for study 3
 # controls for targetDemographics
 if ( run.sanity == TRUE & study == 3 ) {
-
+  
   # names of outcomes to check
   toCheck = unlist( lapply( strsplit( res.MI$res.raw$analysis, " MI" ), function(x) x[[1]] ) )
   
@@ -355,7 +358,7 @@ if ( run.sanity == TRUE & study == 3 ) {
         string = paste( "mainY ~ treat + targetDemographics", sep = "" )
         .imp = .imp[ .imp$targetDemoSimple == TRUE, ]
       }
-        
+      
       ols = lm( eval( parse( text = string ) ), data = .imp )
       est = coef(ols)["treat"]
       
@@ -402,7 +405,7 @@ if ( run.sanity == TRUE & study == 3 ) {
     
     # robust SE
     se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
-
+    
     expect_equal( as.numeric(round( est, 2)),
                   res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     expect_equal( round( se, 2 ),
@@ -419,23 +422,22 @@ if ( run.sanity == TRUE & study == 3 ) {
 
 if ( study == 2 ) {
   res.raw = res.CC$res.raw
+  
   # intentions in each group
-  update_result_csv( name = "intentionCont mean cntrl study 2",
+  update_result_csv( name = "intentionCont mean cntrl",
                      value = round( res.raw$mn0[ res.raw$analysis == "intentionCont CC" ], 2 ) )
   
-  update_result_csv( name = "Preduce cntrl study 2",
+  update_result_csv( name = "Preduce cntrl",
                      value = round( 100 * mean( d$intentionReduce[d$treat ==0] ), 0 ) )
   
-  update_result_csv( name = "intentionCont mean treat study 2",
+  update_result_csv( name = "intentionCont mean treat",
                      value = round( res.raw$mn1[ res.raw$analysis == "intentionCont CC" ], 2 ) )
   
   # sanity check
   mean( d$intentionCont[ d$treat == 0 ] )
   
-  update_result_csv( name = "Preduce treat study 2",
+  update_result_csv( name = "Preduce treat",
                      value = round( 100 * mean( d$intentionReduce[d$treat ==1] ), 0 ) )
-  
-  
   
   
   # continuous outcomes
@@ -445,43 +447,43 @@ if ( study == 2 ) {
   ( pvals = format.pval( res.raw$pval[ res.raw$analysis %in% toReport ],eps =  0.0001 ) )
   
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "diff study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "diff" ),
                      value = round( res.raw$est[ res.raw$analysis %in% toReport ], 2 ) )
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "lo study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "lo" ),
                      value = round( res.raw$lo[ res.raw$analysis %in% toReport ], 2 ) )
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "hi study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "hi" ),
                      value = round( res.raw$hi[ res.raw$analysis %in% toReport ], 2 ) )
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "pval study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "pval" ),
                      value = pvals )
   
   
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g" ),
                      value = round( res.raw$g[ res.raw$analysis %in% toReport ], 2 ) )
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g lo study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g lo" ),
                      value = round( res.raw$g.lo[ res.raw$analysis %in% toReport ], 2 ) )
   
-  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g hi study 2" ),
+  update_result_csv( name = paste( res.raw$analysis[ res.raw$analysis %in% toReport ], "g hi" ),
                      value = round( res.raw$g.hi[ res.raw$analysis %in% toReport ], 2 ) )
   
   # binary outcome
   # this is actually a risk ratio even though it's in the "g" column
   
-  update_result_csv( name = "intentionReduce RR study 2",
+  update_result_csv( name = "intentionReduce RR",
                      value = round( res.raw$g[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
   
   
-  update_result_csv( name = "intentionReduce RR lo study 2",
+  update_result_csv( name = "intentionReduce RR lo",
                      value = round( res.raw$g.lo[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
   
-  update_result_csv( name = "intentionReduce RR hi study 2",
+  update_result_csv( name = "intentionReduce RR hi",
                      value = round( res.raw$g.hi[ res.raw$analysis == "intentionReduce CC" ], 2 ) )
   
-  update_result_csv( name = "intentionReduce RR pval study 2",
+  update_result_csv( name = "intentionReduce RR pval",
                      value = format.pval( res.raw$pval2[ res.raw$analysis == "intentionReduce CC" ], eps = 0.0001 ) )
   
   
@@ -526,7 +528,7 @@ if ( study == 3 ) {
   # any "eliminate" pledge or any "reduce" pledge
   update_result_csv( name = paste( "Perc at least one pledge" ),
                      value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE | dcc$madeReducePledge[ dcc$treat == 1] == TRUE ) ) )
-
+  
   update_result_csv( name = paste( "Perc at least one eliminate pledge" ),
                      value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE) ) )
   
@@ -585,6 +587,7 @@ if ( study == 3 ) {
 
 section = 5
 
+
 # look at effect modifiers as they'll be coded in analysis
 CreateTableOne( vars = effect.mods, 
                 data = dcc,
@@ -595,7 +598,7 @@ CreateTableOne( vars = effect.mods,
 
 if ( exists("res.raw") ) rm(res.raw)
 
-
+# Study 2 doesn't use MI, so is handled in next section
 if ( study %in% c(1,3) ) {
   
   yName = "mainY"
@@ -618,7 +621,7 @@ if ( study %in% c(1,3) ) {
     
   }  ) 
   
-
+  
   res.raw = mi_pool_all(.mi.res = mi.res)
   
   # ~~ Save Both Raw and Cleaned-Up Results Tables ----
@@ -653,7 +656,7 @@ if ( study %in% c(1,3) ) {
     my.mi.res = lapply( imps, function(.imp) {
       string = paste( yName, " ~ ", paste( "treat*", effect.mods, collapse=" + "), sep = "" )
       
-     
+      
       ols = lm( eval( parse( text = string ) ), data = .imp )
       est = coef(ols)[i]
       
@@ -689,9 +692,9 @@ if ( study %in% c(1,3) ) {
   }
   
   if ( study == 3 & run.sanity == TRUE ) {
-  
-    my.mi.res = lapply( imps, function(.imp) {
     
+    my.mi.res = lapply( imps, function(.imp) {
+      
       string = "mainY ~ young + treat*targetDemoSimple"
       ols = lm( eval( parse( text = string ) ), data = .imp )
       est = coef(ols)["treat:targetDemoSimpleTRUE"]
@@ -718,12 +721,12 @@ if ( study %in% c(1,3) ) {
     expect_equal( my.est, res.raw$est["treat:targetDemoSimpleTRUE"] )
     expect_equal( my.se, res.raw$se["treat:targetDemoSimpleTRUE"] )
   }
-
+  
   # ~ One-Off Stats for Paper ----
-
+  
   # best combo of effect modifiers
   if ( study == 1 ){
- 
+    
     # number of moderator coefficients we estimated
     nMods = sum( !is.na(res.raw$pvalBonf) ) 
     alpha3 = 0.05 / nMods
@@ -733,7 +736,7 @@ if ( study %in% c(1,3) ) {
     update_result_csv( name = "Number mods pass Bonf",
                        value = sum( res.raw$pvalBonf[ res.raw$group == "mod" ] < 0.05 ) )
     
-  
+    
     varNames = row.names(res.raw)[ grepl( x = row.names(res.raw), pattern = ":" ) ]
     # can't count coefficients for both political categories
     varNames = varNames[ !varNames == "treat:party2b.Neutral"]
@@ -752,7 +755,7 @@ if ( study %in% c(1,3) ) {
     update_result_csv( name = "Best effect mods absolute g",
                        value = round( abs(g.best), 2 ) )
   }
-
+  
   
 }  # end "if (study %in% c(1,3) )"
 
@@ -799,9 +802,17 @@ setwd(results.dir)
 write.csv(res.nice, "effect_mods_cc_pretty.csv")
 
 # for pasting into Supplement
-library(xtable)
-print( xtable( res.nice), include.rownames = FALSE ) 
+if ( study == 2 ) {
 
+  setwd(results.dir)
+
+  write.table( print( xtable( res.nice,
+                              include.rownames = FALSE ) ),
+               file = "supp_table2_effect_mods_cc_pretty_tex.txt"
+  )
+}
+
+#bm: stopped here because not sure why results aren't matching supplement
 
 
 # ~ Sanity Check: Compare CC to MI ------------------------------------------------
@@ -880,7 +891,7 @@ if ( study == 1 ) {
   mi.res = do.call(what = rbind, mi.res)
   raw = mi_pool(ests = mi.res$est, ses = mi.res$se) 
   SMD = mi_pool(ests = mi.res$g, ses = mi.res$g.se) 
-
+  
   
   update_result_csv( name = "mainYFreqOnly diff",
                      value = round( raw$est, 2 ) )

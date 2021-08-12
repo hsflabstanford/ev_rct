@@ -649,32 +649,8 @@ w1Vars = c( "treat",
 # state has too many categories to work well as predictor
 impModelVars = w1Vars[ !w1Vars == "state" ]
 
-# # bm: give up 
-# for helping to diagnose imp model problems:
-# #  fit logit(P(missingness)) model
-# # predict the most missing variable
-# string = paste("is.na(leafyVeg_Freq ) ~ ", paste(impModelVars, collapse = " + " ))
-# nullModel = glm( is.na(leafyVeg_Freq ) ~ 1, data = d )
-# missModel = glm( eval(parse(text = string) ),data = d )
-# summary(missModel)
-# # entire missingness model not very predictive
-# anova(missModel, nullModel, test = "Chisq" )
-# 
-# # look at inverse-prob of missingness weights (IPMW)
-# d$Pmissing = predict(missModel, type = "response")
-# hist(d$Pmissing)
-# d %>% group_by(is.na(leafyVeg_Freq)) %>% summarise(mean(Pmissing))
-# 
-# # ggplot(subset(ecls_nomiss, catholic == 1), aes(x = pr_score, fill = factor(catholic))) +
-# #   geom_histogram(aes(y = - ..density..)) + # note the negative sign here
-# #   geom_histogram(data = subset(ecls_nomiss, catholic == 0),
-# #                  aes(x = pr_score, y = ..density.., fill = factor(catholic))) +
-# #   ylab("Density") + xlab("Probability of Catholic School Attendance") +
-# #   ggtitle("Propensity Scores in Treated and Untreated\n(Density Histogram)") +
-# #   scale_fill_discrete(name = "Catholic School")
 
-
-# DON'T IMPUTE HERE for Study 3; that one needs to be handled AFTER making derived vars
+# we are NOT imputing here for Study 3; that one needs to be handled AFTER making derived vars
 if ( impute.from.scratch == TRUE & study != 3 ) {
   
   ##### Generate Imputations #####
@@ -686,15 +662,7 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
   # check default methods
   # all PMM, as desired
   ini$method
-  
-  # #@DEBUGGING ONLY
-  # #w2Vars = foodVars # doesn't help
-  # # doesn't even work with just these two
-  # w2Vars = "beef_Ounces"
-  # # try a less missing variable
-  # w2Vars = "leafyVeg_Freq"
-  # impModelVars = c("treat")
-  
+
   # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred
@@ -710,13 +678,6 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
   myMethod = ini$method
   myMethod[ !names(myMethod) %in% w2Vars ] = ""
   
-  
-  # #DDEBUGGIG ONLY
-  # myPred = ini$pred
-  # myPred[myPred == 1] = 0
-  # myPred[ "leafyVeg_Freq", "treat" ] = 1
-  
-  #BM: need to fix this...UGH!!!
   imps = mice( d,
                m=M,  
                predictorMatrix = myPred,

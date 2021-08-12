@@ -82,6 +82,12 @@ section = 2
 update_result_csv( name = "N wave 1",
                    value = nrow(d) )
 
+update_result_csv( name = "N wave 1 treat",
+                   value = sum(d$treat == 1) )
+
+update_result_csv( name = "N wave 1 cntrl",
+                   value = sum(d$treat == 0) )
+
 
 if ( study %in% c(1,3) ){
   
@@ -772,6 +778,34 @@ if ( study %in% c(1,3) ) {
   }
   
   
+  # interaction of treat:targetDemoSimple
+  if ( study == 3 ) {
+ 
+    missMethod = "MI"
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE est", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "est" ], 2 ) )
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE lo", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "lo" ], 2 ) )
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE hi", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "hi" ], 2 ) )
+    
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE pval", missMethod ),
+                       value = format_pval( res.raw["treat:targetDemoSimpleTRUE", "pval"], 2 ) )
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE g", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "g.est" ], 2 ) )
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE g lo", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "g.lo" ], 2 ) )
+    
+    update_result_csv( name = paste( "treat:targetDemoSimpleTRUE g hi", missMethod ),
+                       value = round( res.raw[ "treat:targetDemoSimpleTRUE", "g.hi" ], 2 ) )
+  }
+  
+  
 }  # end "if (study %in% c(1,3) )"
 
 
@@ -827,7 +861,6 @@ if ( study == 2 ) {
   )
 }
 
-#bm: stopped here because not sure why results aren't matching supplement
 
 
 # ~ Sanity Check: Compare CC to MI ------------------------------------------------

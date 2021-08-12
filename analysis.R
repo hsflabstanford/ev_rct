@@ -27,7 +27,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 2
+study = 3
 
 # should we delete existing stats_for_paper.csv and start over?
 # note: since studies all write to same results file,
@@ -107,7 +107,7 @@ if ( study %in% c(1,3) ){
   # p-value for entire missingness model
   ftest = anova(missMod, nullModel, test = "Chisq" )
   update_result_csv( name = paste( "Logit missingness model global pval" ),
-                     value = format.pval(ftest$`Pr(>Chi)`[2], 1 ) )
+                     value = format.pval(ftest$`Pr(>Chi)`[2], 2 ) )
   
   # probability of being missing by treatment group
   # not conditional on covariates
@@ -178,10 +178,13 @@ if( overwrite.res == TRUE ){
 
 # ~ One-Off Stats for Paper ------------------------------------------------
 
-# COVID influence on food choices (given at wave 2)
-if ( study == 1 ){
+# these are separate from the tables because they're specifically mentioned in the text
+if ( study %in% c(1,3 ){
   
-  # demographics to comment on specifically
+  # sex
+  update_result_csv( name = "Perc female",
+                     value = round( 100 * mean( d$female == 1 ), 0 ) )
+  
   # age
   update_result_csv( name = "Age median",
                      value = round( median(d$age), 0 ) )
@@ -200,7 +203,10 @@ if ( study == 1 ){
   update_result_csv( name = "Median county liberalism",
                      value = round( median( 100 * d$pDem ), 0 ) )
   
-  
+}
+
+
+if ( study == 1) {
   # COVID effect on choices
   table(d$covid)
   update_result_csv( name = "Perc COVID less choice",
@@ -215,7 +221,10 @@ if ( study == 1 ){
   
   update_result_csv( name = "Perc COVID no change",
                      value = round( 100 * mean(d$covid == "d.noChange", na.rm = TRUE), 0 ) )
-  
+}
+
+
+if ( study %in% c(1,3)) {
   # attention check
   update_result_csv( name = "Perc videoContent animals treat 1",
                      value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 1]) ), 0 ) )
@@ -232,6 +241,11 @@ if ( study == 1 ){
 }
 
 
+#bm
+table(d$treat, useNA = "ifany")
+
+table( d$videoContent=="" )
+table( d$videoContent[d$problemsBin ]=="" )
 
 
 # ~ Plot Complete-Case Treatment Group Differences ------------------------------------------------
@@ -505,10 +519,10 @@ if ( study == 3 ) {
   # conservatively count these people as not having made a pledge
   # these people have "" for the pledge
   t = sort( dcc %>%
-              filter(treat == 1) %>%
-              summarise_at( .vars = pledgeVars,
-                            .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
-                                                                          "Yes, I pledge to stop eating this food") ) ) ),
+            filter(treat == 1) %>%
+            summarise_at( .vars = pledgeVars,
+                          .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
+                                                                        "Yes, I pledge to stop eating this food") ) ) ),
             decreasing = TRUE )
   
   # confirm sample sizes
@@ -803,9 +817,9 @@ write.csv(res.nice, "effect_mods_cc_pretty.csv")
 
 # for pasting into Supplement
 if ( study == 2 ) {
-
+  
   setwd(results.dir)
-
+  
   write.table( print( xtable( res.nice,
                               include.rownames = FALSE ) ),
                file = "supp_table2_effect_mods_cc_pretty_tex.txt"

@@ -108,6 +108,9 @@ if ( study == 1 ){
 # people who closed survey after starting
 table(w1$Finished)
 
+# check number of rows vs. Qualtrics
+# this includes people who weren't even randomized because they closed
+#  survey before that point
 if ( study == 1 ) expect_equal( nrow(w1), 650 )
 if ( study == 3 ) expect_equal( nrow(w1), 797 )
 
@@ -554,8 +557,6 @@ if ( study == 1 ) {
                        "w1.problemsText",
                        "w2.problemsBin",
                        "w2.problemsText",
-                       "w1.finishedQuestionnaire",
-                       "w2.finishedQuestionnaire",
                        "w1.ID") )
 }
 
@@ -585,8 +586,6 @@ if ( study == 3 ) {
                        "w1.problemsText",
                        "w2.problemsBin",
                        "w2.problemsText",
-                       "w1.finishedQuestionnaire",
-                       "w2.finishedQuestionnaire",
                        "w1.ID",
                        # "pledgeDateGoal",
                        # "pledgeStrategiesFreeText",

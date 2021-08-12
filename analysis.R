@@ -558,8 +558,6 @@ if ( study == 3 ) {
   
 }
 
-#bm: stopped here with re-running Study 3 code :)
-
 # for sanity check, maybe
 # dcc %>%
 #   filter(treat == 1) %>%
@@ -735,8 +733,8 @@ if ( study %in% c(1,3) ) {
     B = var(my.mi.res$est)
     my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
     
-    expect_equal( my.est, res.raw$est["treat:targetDemoSimpleTRUE"] )
-    expect_equal( my.se, res.raw$se["treat:targetDemoSimpleTRUE"] )
+    expect_equal( my.est, res.raw["treat:targetDemoSimpleTRUE", "est"] )
+    expect_equal( my.se, res.raw["treat:targetDemoSimpleTRUE", "se"] )
   }
   
   # ~ One-Off Stats for Paper ----

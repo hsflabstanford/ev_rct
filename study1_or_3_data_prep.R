@@ -828,9 +828,6 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
   # state has too many categories to work well as predictor
   impModelVars = w1Vars[ !w1Vars == "state" ]
   
-  # w2Vars = "mainY"
-  # impModelVars = "treat"
-  
   # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred

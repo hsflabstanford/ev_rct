@@ -179,7 +179,7 @@ if( overwrite.res == TRUE ){
 # ~ One-Off Stats for Paper ------------------------------------------------
 
 # these are separate from the tables because they're specifically mentioned in the text
-if ( study %in% c(1,3 ){
+if ( study %in% c(1,3) ){
   
   # sex
   update_result_csv( name = "Perc female",
@@ -226,17 +226,29 @@ if ( study == 1) {
 
 if ( study %in% c(1,3)) {
   # attention check
+  
+  # Important: In Study 3, lots of subjects who were randomized didn't finish the questionnaire.
+  #  Because this attention question did not require a response (because subjects could check
+  #  zero boxes to indicate that the video didn't cover any of these topics), we can't just look
+  #  at d$videoContent[d$treat == 0], for example: that would count everyone who stopped 
+  # questionnaire before attention question as having failed it because those subjects would have 
+  #  a "" response as well. 
+  # So we are calculating these percentages among only subjects who finished the W1 questionnaire.
+  
+  # people who finished W1
+  df = d[ d$w1.finishedQuestionnaire == TRUE, ]
+  
   update_result_csv( name = "Perc videoContent animals treat 1",
-                     value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 1]) ), 0 ) )
+                     value = round( 100 * mean( grepl(pattern = "animals", x = df$videoContent[df$treat == 1]) ), 0 ) )
   
   update_result_csv( name = "Perc videoContent animals treat 0",
-                     value = round( 100 * mean( grepl(pattern = "animals", x = d$videoContent[d$treat == 0]) ), 0 ) )
+                     value = round( 100 * mean( grepl(pattern = "animals", x = df$videoContent[df$treat == 0]) ), 0 ) )
   
   update_result_csv( name = "Perc pass check treat 1",
-                     value = round( 100 * mean(d$passCheck[ d$treat == 1] == TRUE), 0 ) )
+                     value = round( 100 * mean(df$passCheck[ df$treat == 1] == TRUE), 0 ) )
   
   update_result_csv( name = "Perc pass check treat 0",
-                     value = round( 100 * mean(d$passCheck[ d$treat == 0] == TRUE), 0 ) )
+                     value = round( 100 * mean(df$passCheck[ df$treat == 0] == TRUE), 0 ) )
   
 }
 
@@ -245,7 +257,7 @@ if ( study %in% c(1,3)) {
 table(d$treat, useNA = "ifany")
 
 table( d$videoContent=="" )
-table( d$videoContent[d$problemsBin ]=="" )
+table( d$videoContent[ d$w1.finishedQuestionnaire == TRUE ]=="" )
 
 
 # ~ Plot Complete-Case Treatment Group Differences ------------------------------------------------

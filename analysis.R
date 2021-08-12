@@ -253,12 +253,6 @@ if ( study %in% c(1,3)) {
 }
 
 
-#bm
-table(d$treat, useNA = "ifany")
-
-table( d$videoContent=="" )
-table( d$videoContent[ d$w1.finishedQuestionnaire == TRUE ]=="" )
-
 
 # ~ Plot Complete-Case Treatment Group Differences ------------------------------------------------
 
@@ -342,21 +336,18 @@ if ( study %in% c(1,3)) {
 
 
 
-# for pasting into TeX supplement
-# maybe also Study 3?
-if ( study %in% c(1,2) ) {
-  
-  setwd(results.dir)
-  
-  short = res.CC$res.nice %>% select(analysis,
-                                     est,
-                                     g.est,
-                                     pval)
-  write.table( print( xtable( short,
-                              include.rownames = FALSE ) ),
-               file = "table2_trt_effect_all_outcomes_cc_pretty_tex.txt"
-  )
-}
+# xtable of CC results, for pasting into TeX supplement
+
+setwd(results.dir)
+
+short = res.CC$res.nice %>% select(analysis,
+                                   est,
+                                   g.est,
+                                   pval)
+write.table( print( xtable( short,
+                            include.rownames = FALSE ) ),
+             file = "table2_trt_effect_all_outcomes_cc_pretty_tex.txt"
+)
 
 
 

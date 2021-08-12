@@ -449,6 +449,34 @@ analyze_all_outcomes = function(missMethod) {
     update_result_csv( name = paste( "mainY diff g hi", missMethod ),
                        value = round( res.raw$g.hi[ res.raw$analysis == analysis.string], 2 ) )
     
+    ##### One-Off Stats for Study 3 Only: Main Estimate Among Target Demographic #####
+    
+    if ( study == 3 ) {
+    analysis.string2 = paste( "mainY targetDemoSimple-subset", missMethod, sep = " ")
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff", missMethod ),
+                       value = round( res.raw$est[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff lo", missMethod ),
+                       value = round( res.raw$lo[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff hi", missMethod ),
+                       value = round( res.raw$hi[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff pval", missMethod ),
+                       value = format_pval( res.raw$pval[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g", missMethod ),
+                       value = round( res.raw$g[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g lo", missMethod ),
+                       value = round( res.raw$g.lo[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g hi", missMethod ),
+                       value = round( res.raw$g.hi[ res.raw$analysis == analysis.string2], 2 ) )
+    
+    }
     
     ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
     update_result_csv( name = paste( "Bonferroni alpha secY", missMethod ),

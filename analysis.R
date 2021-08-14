@@ -9,7 +9,10 @@
 # This script writes results locally and to Overleaf
 
 # To do:
-#  - When writing tables, keep names consistent with paper
+#  - When writing tables, keep table nums in file names consistent with paper
+
+
+
 
 # 0. PRELIMINARIES ------------------------------------------------
 

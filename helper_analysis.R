@@ -64,15 +64,11 @@ prelims = function(study, overwrite.res) {
   setwd(prepped.data.dir)
   if (study %in% c(1,3)){
     d <<- read.csv("prepped_merged_data.csv")
-    
 
-    
     # complete cases wrt mainY
     # might still have sporadic missing data elsewhere
     dcc <<- d %>% filter( !is.na(mainY) )
     nrow(dcc)
-    
-    table(is.na(d$beef))
   }
   
   if (study == 2) {
@@ -153,8 +149,7 @@ prelims = function(study, overwrite.res) {
 ##### Major Fn: Analyze All Outcomes, Primary and Secondary #####
 
 # uses a lot of global vars, like study
-# works for study 1 and 3, but not 2
-
+# missMethod: "MI" or "CC"
 
 analyze_all_outcomes = function(missMethod) {
   
@@ -191,7 +186,7 @@ analyze_all_outcomes = function(missMethod) {
         
       }
       
-      # Study 3: controlling for randomization strata
+      # Study 3: control for randomization strata
       if ( study == 3 ) {
         
         if ( missMethod == "MI" ) {
@@ -246,6 +241,8 @@ analyze_all_outcomes = function(missMethod) {
                              # key difference from above: create the subset
                              .d = .d[ .d$targetDemoSimple == TRUE, ]
                              .d$Y = .d[[i]]
+                             # note that we're still controlling for the RANDOMIZATION variable, targetDemographics, because it's not the same as targetDemoSimple
+                             # in practice doesn't matter at all because so few people have targetDemographics == 1
                              ols = lm( Y ~ treat + targetDemographics,
                                        data = .d)
                              my_ols_hc0( coefName = "treat",
@@ -291,10 +288,10 @@ analyze_all_outcomes = function(missMethod) {
       }  # end study == 3 & i == "mainY"
       
  
-      # Study 2 only: also do analysis for the binary variable
-      # intentionCont here because we only want to do this extra analysis once, not
-      #  for every outcome
-      # but the analysis will actually be for intentionReduce
+      # Study 2 only: also do analysis for the binary variable, intentionReduce
+      #  This analysis actually happens during the iterate for the variable intentionCont.
+      #  This is a hacky way to have this special analysis performed only once, not for every outcome in 
+      #  Study 2.
       if ( study == 2 & i == "intentionCont") {
         # get inference for risk difference
         mod1 = lm( intentionReduce ~ treat,
@@ -351,10 +348,8 @@ analyze_all_outcomes = function(missMethod) {
         new.row$group.specific = c("intentionCont", "intentionReduce")
       }
       
-      #browser()
-      
       # for CC analyses only, add raw means and medians
-      #@NOTE: FOR STUDY 3, DIFF IN MEANS WON'T EXACTLY MATCH EST BECAUSE EST CONTROLS
+      # NOTE: FOR STUDY 3, DIFF IN MEANS WON'T EXACTLY MATCH EST BECAUSE EST CONTROLS
       #  FOR STRATIFICATION VARS
       if ( missMethod == "CC" ) {
         new.row = new.row %>% add_column( .before = 1,
@@ -420,8 +415,8 @@ analyze_all_outcomes = function(missMethod) {
     
     
     setwd(results.dir)
-    if ( missMethod == "MI") write.csv(res.nice, "table2_trt_effect_all_outcomes_mi_pretty.csv")
-    if ( missMethod == "CC") write.csv(res.nice, "table2_trt_effect_all_outcomes_cc_pretty.csv")
+    if ( missMethod == "MI") write.csv(res.nice, "table_trt_effect_all_outcomes_mi_pretty.csv")
+    if ( missMethod == "CC") write.csv(res.nice, "table_trt_effect_all_outcomes_cc_pretty.csv")
     
     
     ##### One-Off Stats for Paper: Main Estimates #####

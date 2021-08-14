@@ -75,20 +75,17 @@ recode_checkboxes = function( .d,
 }
 
 
+
+# also removes the stateCounty variable for deidentification
+# see study1_or_3_data_prep.R for sanity checks (search name of this fn)
 make_derived_vars = function(.d,
                              # variable lists
                              .meats = meats,
                              .animProds = animProds,
                              .goodPlant = goodPlant,
                              
-                             printCorMat = TRUE  # print subscale correlation matrices for psych vars?
+                             printCorMat = FALSE  # print subscale correlation matrices for psych vars?
                              ){
-  
-  # # test only
-  # .d = d
-  # .meats = meats
-  # .animProds = animProds
-  # .goodPlant = goodPlant
   
   # recode food variables
   for ( i in allFoods){
@@ -96,7 +93,6 @@ make_derived_vars = function(.d,
                        food = i)
   }
   
-  #browser()
   # secondary outcome: total meat (total ounces over the week)
   # rowSums defaults to NOT removing NAs, so NA in ANY meat should cause 
   #  total to be NA as well
@@ -111,8 +107,7 @@ make_derived_vars = function(.d,
   
   # primary outcome: total meat + animal product consumption
   .d$mainY = .d$totalMeat + .d$totalAnimProd
-  # # binary version for measurement error sensitivity analysis
-  # .d$mainYLow = .d$mainY < median( .d$mainY[.d$treat == 0], na.rm = TRUE )
+
   # frequency-only version for sensitivity analysis
   vars = c("chicken_Freq",
            "turkey_Freq",
@@ -150,9 +145,7 @@ make_derived_vars = function(.d,
                                        "X8_dom"),
                            printCorMat = printCorMat )
 
-  # # recode compliance (finished watching video)
-  # .d$finishedVid = (.d$video.time >= 20)
-  
+
   # recode awareness
   .d$aware = (.d$guessPurpose == "g.meatAnimProd") & (.d$guessPurpose2 == "c.decrease")
   
@@ -177,6 +170,9 @@ make_derived_vars = function(.d,
   # only for Study 3: the simplified joint effect modifier
   if ( study == 3 ) .d$targetDemoSimple = (.d$party == "Democrat") & (.d$highEduc == TRUE)
   
+  # remove county variables to deidentify
+  if ( "stateCounty" %in% names(.d) ) .d = .d %>% select(-stateCounty)
+  if ( "county" %in% names(.d) ) .d = .d %>% select(-county)
   
   ##### Misc #####
   # these vars only exist for study 1
@@ -198,6 +194,7 @@ make_derived_vars = function(.d,
 
 # yName: just the root of the string, e.g., "dairy"
 # NOTE: overwrites the frequency and amount variables in the returned dataset
+# see study1_or_3_data_prep.R for sanity checks (search name of this fn)
 recode_food_Y = function(.d,
                          food){
   
@@ -249,23 +246,12 @@ recode_food_Y = function(.d,
 #
 # scale: part of scale string that appears in each subscale's variable name (e.g., "spec" for speciesism); also becomes the name of the new composite variable
 # revCode: quoted names of any subscales that need to be reverse-coded
-# @NOT TESTED YET
-# bm
+# see study1_or_3_data_prep.R for sanity checks (search name of this fn)
 recode_psych_scale = function(.d,
                               scale, 
                               revCode = NA,
                               printCorMat = TRUE) {
-  # bm2
-  
-  # # test only
-  # .d = d
-  # scale = "dom"
-  # revCode = c("X3_dom",
-  #             "X4_dom",
-  #             "X7_dom",
-  #             "X8_dom")
-  # printCorMat = TRUE
-  
+
   # duplicate dataset just for ease of sanity-checking
   .d2 = .d
   

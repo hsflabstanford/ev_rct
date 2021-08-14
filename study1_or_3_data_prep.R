@@ -1,5 +1,5 @@
 
-# note: when creating the time-on-task variable, need to use page 3 time on and off task
+# Note: For Study 1, when creating the time-on-task variable, need to use page 3 time on and off task
 # from the TaskMaster Shiny parser, whose sum agrees with Qualtrics' own timer
 
 rm(list=ls())
@@ -14,17 +14,17 @@ rm(list=ls())
 overwrite.res = TRUE
 
 # should sanity checks be run?
-run.sanity = FALSE
+run.sanity = TRUE
 
 # should we impute from scratch or read in saved datasets?
 # from scratch takes about an hour
-impute.from.scratch = FALSE
+impute.from.scratch = TRUE
 # number of imputations
 M = 10 
 
 # which study's data to prep?
 # must be 1 or 3
-study = 3
+study = 1
 # for making strings
 if ( study %in% c(1,3) ) study.string = paste("Study", study, sep = " ") else stop("Invalid study spec.")
 
@@ -39,19 +39,38 @@ library(qdapTools)
 library(Amelia)
 library(tableone)
 library(here)
+library(stringr)
 
-
-##### Working Directories #####
+##### Working Directories - Deidentified Data #####
 imputed.data.dir = here( paste("Data/Prepped/", study.string, "/Saved imputations",
                                sep = "") )
 
-raw.data.dir = here( paste("Data/Raw/", study.string, sep = "" ) )
 prepped.data.dir = here( paste("Data/Prepped/", study.string, sep = "" ) )
 # this script will save some results of sanity checks
 results.dir = here( paste("Results from R/", study.string, sep = "" ) )
 
 # county political affiliation data
 county.prepped.data.dir = here("Data/Prepped")
+
+
+##### Working Directories - Identifiable Data (Private) #####
+# these are datasets that still have the county variable
+# includes the raw imputations because we use county to help impute
+# raw (identifiable) data are stored a level up from the public dirs
+raw.data.dir = str_replace_all( string = here(),
+                 pattern = "Linked to OSF \\(EatingVeg\\)",
+                 replacement = "Data (IDENTIFIABLE)/Raw" )
+# for intermediate steps that still have county variable
+prepped.data.dir.private = str_replace_all( string = here(),
+                                pattern = "Linked to OSF \\(EatingVeg\\)",
+                                replacement = "Data (IDENTIFIABLE)/Prepped intermediate" )
+imputed.dir.private = str_replace_all( string = here(),
+                                            pattern = "Linked to OSF \\(EatingVeg\\)",
+                                            replacement = paste( "Data (IDENTIFIABLE)/Prepped intermediate/Study ",
+                                                                 study,
+                                                                 "/Raw imputed datasets",
+                                                                 sep = ""  ) )
+
 
 code.dir = here("Code (git)")
 
@@ -100,8 +119,10 @@ allFoods = c(meats, animProds, decoy, goodPlant)
 # and I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
 if ( study == 1 ){
+  setwd("Study 1")
   w1 = read.csv("wave1_R1_noheader_taskmaster.csv", header = TRUE)
 } else if ( study == 3 ) {
+  setwd("Study 3")
   w1 = read.csv("study3_wave1_R1_from_qualtrics_noheader.csv", header = TRUE)
 }
 
@@ -329,8 +350,7 @@ dupID = w1$w1.ID[ duplicated(w1$w1.ID) ]
 # keep only this person's first submission
 w1 = w1 %>% filter( !duplicated(w1.ID) )
 
-#@KEEP ONLY SUBJECTS WHO WERE RANDOMIZED
-# added this AFTER study 1, so could affect its sample size
+# keep only subjects who were randomized
 w1 = w1 %>% filter( !is.na(treat) )
 
 if ( study == 1 ) expect_equal( nrow(w1), 649 )
@@ -338,8 +358,10 @@ if ( study == 3 ) expect_equal( nrow(w1), 665 )
 
 ################################ SAVE PREPPED W1 DATA ################################ 
 
+
 if ( overwrite.prepped.data == TRUE ) {
-  setwd(prepped.data.dir)
+  setwd(prepped.data.dir.private)
+  setwd(study.string)
   write.csv(w1, "prepped_data_W1_R1.csv")
 }
 
@@ -347,7 +369,8 @@ if ( overwrite.prepped.data == TRUE ) {
 ################################ SANITY CHECKS ################################ 
 
 # read back in
-setwd(prepped.data.dir)
+setwd(prepped.data.dir.private)
+setwd(study.string)
 w1 = read.csv("prepped_data_W1_R1.csv")
 
 
@@ -355,14 +378,14 @@ if ( run.sanity == TRUE ){
   # quick look at demographics
   if ( study == 1 ) {
     temp = w1 %>% select( c("treat",
-                            demoVars,
+                            demoVars[ !demoVars == "covid" ],  # because this var was in W2 only
                             "passCheck",
                             "onTaskMin") )
   }
   
   if ( study == 3 ) {
     temp = w1 %>% select( c("treat",
-                            demoVars,
+                            demoVars[ !demoVars == "covid" ],
                             "passCheck") )
   }
 
@@ -430,15 +453,23 @@ if ( run.sanity == TRUE ){
 ##### Read in Wave 2 Data #####
 # I already manually removed 2 extra header rows from Qualtrics
 setwd(raw.data.dir)
-if ( study == 1 ) w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
-if ( study == 3 ) w2 = read.csv( "study3_wave2_R1_from_qualtrics_noheader.csv", header = TRUE)
+if ( study == 1 ) {
+  setwd("Study 1")
+  w2 = read.csv( "wave2_R2_noheader.csv", header = TRUE)
+}
+
+
+if ( study == 3 ) {
+  setwd("Study 3")
+  w2 = read.csv( "study3_wave2_R1_from_qualtrics_noheader.csv", header = TRUE)
+}
+
+
 
 # a couple people started the survey, but then did not finish
 table(w2$Finished)
-#@ REVISIT THIS DISCREPANT CHOICE OF HANDLING MISSING DATA:
-# FOR STUDY 3, WILL IMPUTE FOR PEOPLE WHO STARTED BUT DIDN'T FINISH
-# PROBABLY BEST TO DO THIS FOR STUDY 1 AS WELL
-if ( study == 1 ) w2 = w2[ w2$Finished == TRUE, ]
+#@REMOVED THIS; COULD SLIGHTLY AFFECT MULTIPLE IMPUTATION (already re-run)
+#if ( study == 1 ) w2 = w2[ w2$Finished == TRUE, ]
 
 nrow(w2)  # number of completers
 nrow(w2) / nrow(w1)  # completion rate vs. n from wave 1
@@ -509,7 +540,8 @@ nrow(w2)
 ################################ MERGE WAVES ################################
 
 # read wave 1 in again
-setwd(prepped.data.dir)
+setwd(prepped.data.dir.private)
+setwd(study.string)
 w1 = read.csv( "prepped_data_W1_R1.csv", header = TRUE)
 
 # merge waves
@@ -517,9 +549,6 @@ d = merge( w1, w2, by.x = "w1.ID", by.y = "w2.ID", all.x = TRUE)
 
 if ( study == 1 ) expect_equal( nrow(d), 649 )
 if ( study == 3 ) expect_equal( nrow(d), 665 )
-
-# table(is.na(w2$beef_Freq))
-# table(is.na(d$beef_Freq))
 
 
 
@@ -530,8 +559,8 @@ d = d %>% mutate_if(sapply(d, is.character), as.factor)
 sum(sapply(d, is.character))  # check again; should be 0
 
 # drop variables that aren't useful for analysis
-#@RETURN TO THIS; I DON'T THINK WE ACTUALLY NEED TO DROP NON-IMPUTATION VARS HERE
-#  BECAUSE WE SPECIFY LATER
+# also drop all identifying variables so that imputed datasets and prepped main datset
+#   are deidentified
 d$ID = d$w1.ID  # have just one ID variable
 
 if ( study == 1 ) {
@@ -587,12 +616,7 @@ if ( study == 3 ) {
                        "w2.problemsBin",
                        "w2.problemsText",
                        "w1.ID",
-                       # "pledgeDateGoal",
-                       # "pledgeStrategiesFreeText",
-                       # "w1.totalQuestionnaireMin",
-                       # "w2.totalQuestionnaireMin",
-                       # "stateCounty",  # redundant with 
-                       "wantsRaffle",  #@IULTIMATELY NEED TO DE-ID THE DATASET EARLIER IN WORKFLOW
+                       "wantsRaffle", 
                        "raffleEmail") )
 }
 
@@ -603,6 +627,8 @@ names(d)
 
 
 # save intermediate dataset
+setwd(prepped.data.dir.private)
+setwd(study.string)
 write_interm(d, "d_intermediate_1.csv")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -619,6 +645,8 @@ write_interm(d, "d_intermediate_1.csv")
 # outlying subjects.
 
 # redo imps here
+setwd(prepped.data.dir.private)
+setwd(study.string)
 d = read_interm("d_intermediate_1.csv")
 
 # look at missingness patterns
@@ -695,12 +723,12 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
   # plot comparing density of imputed data to observed datas 
   # https://stefvanbuuren.name/fimd/sec-diagnostics.html
   # red: imputations, blue: observed
-  setwd(results.dir)
-  pdf(file = "imputation_density_plot.pdf",
-      width = 15,
-      height = 10)
-  densityplot(imps)
-  dev.off()
+  # setwd(results.dir)
+  # pdf(file = "imputation_density_plot.pdf",
+  #     width = 15,
+  #     height = 10)
+  # densityplot(imps)
+  # dev.off()
   
   # any complaints?
   unique(imps$loggedEvents)
@@ -716,7 +744,8 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
   if ( overwrite.res == TRUE ) {
     
     # save imputations for reproducibility
-    setwd(imputed.data.dir)
+    # these raw imputed datasets still have county variable, so are kept in private dir
+    setwd(imputed.dir.private)
     save( imps, file = "imputed_datasets.RData" )
     
     for (i in 1:M) {
@@ -733,7 +762,7 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
 if ( study != 3 ) {
   # we're doing this even if impute.from.scratch=TRUE to have same data format
   # i.e., a list of imputed datasets instead of a mids object
-  setwd(imputed.data.dir)
+  setwd(imputed.dir.private)
   
   # avoid trying to recode other files in that directory
   toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
@@ -754,13 +783,17 @@ d = read_interm("d_intermediate_1.csv")
 
 
 # recode CC dataset
+# this is now de-ID'ed thanks to make_derived_vars
 d2 = make_derived_vars(d)
 
-# sanity checks
-# mainY should be missing whenever any frequency variable is missing
-# but not necessarily when the ounces variables are missing, because those 
-#  are also missing if the subject reported never eating that food
-freqVars = c("chicken_Freq",
+# sanity checks on make_derived_vars
+if ( run.sanity == TRUE ) {
+  
+  ### Do Missingness Patterns Make Sense? ###
+  # mainY should be missing whenever any frequency variable is missing
+  # but not necessarily when the ounces variables are missing, because those 
+  #  are also missing if the subject reported never eating that food
+  freqVars = c("chicken_Freq",
                "turkey_Freq",
                "fish_Freq",
                "pork_Freq",
@@ -768,12 +801,62 @@ freqVars = c("chicken_Freq",
                "otherMeat_Freq",
                "dairy_Freq",
                "eggs_Freq")
+  
+  temp = d2[ ,freqVars ]
+  # Study 3: Equals 0 or 8, meaning that either someone dropped out of study entirely
+  #  or they answered all food freq questions, which is good
+  d2$numFoodFreqMissing = rowSums( is.na(temp) )
+  expect_equal( d2$numFoodFreqMissing > 0, is.na(d2$mainY) )
+  
+  
+  ### Reproduce One Food Variable ###
+  # sanity check on recode_food_Y
+  beef_Freq = suppressWarnings( dplyr::recode( d$beef_Freq,
+                                               a.Never = 0,
+                                               b.1Weekly = 1,
+                                               c.2Weekly = 2,
+                                               d.3to4Weekly = 3.5,
+                                               e.5to6Weekly = 5.5,
+                                               f.1Daily = 7,
+                                               g.2PlusDaily = 14) )
+  
+  table(beef_Freq, useNA = "ifany")
+  
+  myBeef = beef_Freq * d$beef_Ounces
+  # overwrite spurious NAs that happen when frequency is 0, so oz are NA
+  myBeef[ beef_Freq == 0 ] = 0 
+   
+  expect_equal(myBeef, d2$beef)
+  
+  ### Reproduce One Psych Variable: Speciesism ###
+  # sanity check on recode_psych_var
+  vars = names(d)[ grepl( pattern = "spec", 
+                          x = names(d) ) ]
+  
+  temp = d[ ,vars ]
+  
+  # reverse-code as needed
+  temp$X5_spec = -temp$X5_spec 
+  
+  my.spec.raw = rowSums(temp)
+  
+  # standardize
+  my.spec.std = ( my.spec.raw - mean( my.spec.raw, na.rm = TRUE ) ) / sd( my.spec.raw, na.rm = TRUE )
+  
+  expect_equal(my.spec.std, d2$spec)
+  
+  ### Reproduce Composite Food Outcomes ###
+  # start from the recoded specific-food outcomes
+  my.totalMeat = d2$chicken + d2$turkey + d2$fish + d2$pork + d2$beef + d2$otherMeat
+  expect_equal( my.totalMeat, d2$totalMeat )
+  
+  my.animProds = d2$dairy + d2$eggs
+  expect_equal( my.animProds, d2$totalAnimProd )
+  
+  expect_equal( my.totalMeat + my.animProds, d2$mainY)
+}
 
-temp = d2[ ,freqVars ]
-# Study 3: Equals 0 or 8, meaning that either someone dropped out of study entirely
-#  or they answered all food freq questions, which is good
-d2$numFoodFreqMissing = rowSums( is.na(temp) )
-expect_equal( d2$numFoodFreqMissing > 0, is.na(d2$mainY) )
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -865,7 +948,7 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
   if ( overwrite.res == TRUE ) {
     
     # save imputations for reproducibility
-    setwd(imputed.data.dir)
+    setwd(imputed.dir.private)
     save( imps, file = "imputed_datasets.RData" )
     
     for (i in 1:M) {
@@ -883,13 +966,14 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
 # not needed for Study 3, for which we imputed derived vars directly
 if ( study != 3 ) {
   # saves a new version of the imputation dataset (does not overwrite the old one)
-  setwd(imputed.data.dir)
+  setwd(imputed.dir.private)
   for ( i in 1:M ) {
     imp = as.data.frame( imps[[i]] )
     
     imp = make_derived_vars(imp, printCorMat = FALSE)
     
-    # overwrite the old one (prior to making derived variables)
+    # save into the public directory now that the datasets are de-ID'ed
+    setwd(imputed.data.dir)
     write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
   }
 }

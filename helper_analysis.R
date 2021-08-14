@@ -148,9 +148,13 @@ prelims = function(study, overwrite.res) {
 
 ##### Major Fn: Analyze All Outcomes, Primary and Secondary #####
 
+# This fn accounts for the following differences in analyses across the 3 studies:
+#  - Studies 1 and 2 used marginal randomization, so each outcome is analyzed with a t-test. However, Study 2 used stratified randomization, so each outcome is analyzed with OLS + robust inference, controlling for variable, `targetDemographic`, used in randomization.
+#  - For Study 3, we analyzed treatment effects on `mainY` in two ways: first among all subjects, and then only among those with `targetDemoSimple = TRUE`.
+#  - Study 2 has a single binary outcome, `intentionReduce`, for which we used a log-linear model (with regular model-based inference) to estimate a risk ratio.
+
 # uses a lot of global vars, like study
 # missMethod: "MI" or "CC"
-
 analyze_all_outcomes = function(missMethod) {
   
   if ( study %in% c(1,2,3) ) {
@@ -384,8 +388,8 @@ analyze_all_outcomes = function(missMethod) {
     
     # in order to have the unrounded values
     setwd(results.dir)
-    if ( missMethod == "MI") write.csv(res.raw, "trt_effect_all_outcomes_mi.csv")
-    if ( missMethod == "CC") write.csv(res.raw, "trt_effect_all_outcomes_cc.csv")
+    if ( missMethod == "MI") write.csv(res.raw, "4_trt_effect_all_outcomes_mi.csv")
+    if ( missMethod == "CC") write.csv(res.raw, "4_trt_effect_all_outcomes_cc.csv")
     
   
     # cleaned-up version
@@ -415,8 +419,8 @@ analyze_all_outcomes = function(missMethod) {
     
     
     setwd(results.dir)
-    if ( missMethod == "MI") write.csv(res.nice, "table_trt_effect_all_outcomes_mi_pretty.csv")
-    if ( missMethod == "CC") write.csv(res.nice, "table_trt_effect_all_outcomes_cc_pretty.csv")
+    if ( missMethod == "MI") write.csv(res.nice, "4_table_trt_effect_all_outcomes_mi_pretty.csv")
+    if ( missMethod == "CC") write.csv(res.nice, "4_table_trt_effect_all_outcomes_cc_pretty.csv")
     
     
     ##### One-Off Stats for Paper: Main Estimates #####

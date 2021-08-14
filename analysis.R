@@ -8,6 +8,8 @@
 
 # This script writes results locally and to Overleaf
 
+# Tables are numbered based on the section number of `analysis.R` that produces them, not the table numbers in the manuscript
+
 # To do:
 #  - When writing tables, keep table nums in file names consistent with paper
 
@@ -73,10 +75,11 @@ CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
 
 # sanity check: treatment effects
 # main and secondaries t-tests
+# for Study 3, won't agree with CC results table exactly because table conditions on randomization variable
 CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )
 
 
-# 2. DESCRIPTIVE & TABLE 1 ------------------------------------------------
+# 2. DESCRIPTIVE STATS & DEMOGRAPHICS TABLE ------------------------------------------------
 
 # for keeping results csv organized
 section = 2
@@ -181,7 +184,7 @@ t1 = data.frame( Characteristic = t1.treat$Characteristic,
 # save it
 if( overwrite.res == TRUE ){
   setwd(results.dir)
-  write.csv(t1, "table1.csv")
+  write.csv(t1, "2_table_demographics.csv")
 }
 
 
@@ -303,31 +306,10 @@ if ( study == 2 ){
 
 
 
-# 4. TABLE 2: ALL TREATMENT EFFECTS (MI AND CC; ALL OUTCOMES)  ------------------------------------------------
-
-# this script automatically knows that Study 2 also needs the intention outcome measures
-
-# Primary analyses: We will conduct a 2-sample Welch’s t-test of total consumption by treatment group, reporting
-# the mean difference, a 95% confidence interval, and a p-value treated as a continuous measure.
-# We expect that errors may be highly skewed and heteroskedastic. The Welch’s t-test
-# accommodates this heteroskedasticity and and is robust to error skewness by the Central
-# Limit Theorem (Fagerland, 2012; Stapleton, 2009). We will therefore not transform the
-# outcome to reduce skewness.
-
-# Secondary outcomes: We will conduct a counterpart to the primary analysis for each
-# secondary outcome, comprising the secondary consumption outcomes as well as the exploratory
-# psychological outcomes. We will report inference for all secondary outcomes both with and
-# without Bonferroni correction, counting one test per secondary outcome. As outcome-wide
-# measures of the intervention’s effect on the secondary outcomes, we will report: (i) the
-# harmonic mean p-values (Wilson, 2019) for all secondary food outcomes considered together,
-# for all secondary food outcomes considered together, and for all exploratory psychological
-# outcomes considered together; and (ii) the number of secondary outcomes with a Bonferronicorrected
-# p < 0:05. The latter can be interpreted with 95% confidence as the number of
-# secondary outcomes on which the intervention has an effect (VanderWeele & Mathur, 2019).
+# 4. TABLE: ALL TREATMENT EFFECTS (MI AND CC; ALL OUTCOMES)  ----------------------
 
 
 section = 4
-
 
 if ( exists("res.raw") ) rm(res.raw)
 
@@ -346,7 +328,6 @@ if ( study %in% c(1,3)) {
 
 
 # xtable of CC results, for pasting into TeX supplement
-
 setwd(results.dir)
 
 short = res.CC$res.nice %>% select(analysis,
@@ -355,17 +336,48 @@ short = res.CC$res.nice %>% select(analysis,
                                    pval)
 write.table( print( xtable( short,
                             include.rownames = FALSE ) ),
-             file = "table2_trt_effect_all_outcomes_cc_pretty_tex.txt"
+             file = "4_table_trt_effect_all_outcomes_cc_pretty_tex.txt"
 )
 
 
 
+# ~ Sanity Check: Compare CC to MI ------------------------------------------------
 
-# ~~ Sanity Checks on Main Analyses
+if ( (study %in% c(1,3)) & run.sanity == TRUE ) {
+  setwd(results.dir)
+  res.cc = read.csv("4_trt_effect_all_outcomes_cc.csv")
+  res.mi = read.csv("4_trt_effect_all_outcomes_mi.csv")
+  expect_equal( TRUE, all( row.names(res.cc) == row.names(res.mi) ) )
+  
+  ggplot( data = data.frame( cc = res.cc$est, mi = res.mi$est ),
+          aes( x = cc, y = mi ) ) +
+    theme_bw() + 
+    geom_abline( slope = 1, intercept = 0, lty = 2, color = "gray" ) +
+    geom_point()
+  
+  setwd(results.dir)
+  ggsave( "CC_vs_MI_effect_mod_ests.pdf",
+          height = 6,
+          width = 6 )
+  
+  ggplot( data = data.frame( cc = res.cc$se, mi = res.mi$se ),
+          aes( x = cc, y = mi ) ) +
+    theme_bw() + 
+    geom_abline( slope = 1, intercept = 0, lty = 2, color = "gray" ) +
+    geom_point()
+  
+  setwd(results.dir)
+  ggsave( "CC_vs_MI_effect_mod_SEs.pdf",
+          height = 6,
+          width = 6 )
+  
+  summary( res.mi$se / res.cc$se )
+}
 
 
-# Manually reproduce est and SE in res.raw for a single outcome
+# ~~ Sanity Checks on Main Analyses  ----------------------
 
+# Manually reproduce est and SE in res.raw for all outcomes
 
 # reproduce MI results for study 3
 # controls for targetDemographics
@@ -443,6 +455,9 @@ if ( run.sanity == TRUE & study == 3 ) {
 
 
 
+#@sanity checks for MI analyses for other studies?
+# especially intentionReduce in Study 2
+
 
 # ~~ One-Off Stats for Study 2 ------------------------------------------------
 
@@ -518,8 +533,6 @@ if ( study == 2 ) {
 
 # ~~ One-Off Stats for Study 3 ------------------------------------------------
 
-# "We will report descriptively on the distribution of responses to the new intervention engagement items above, but will not include them in primary analyses. We may conduct post hoc exploratory analyses with these variables."
-
 if ( study == 3 ) {
   
   # proportion of subjects making pledges 
@@ -527,8 +540,8 @@ if ( study == 3 ) {
   pledgeVars = pledgeVars[ !pledgeVars %in% c("pledgeDateGoal", "pledgeStrategies", "pledgeStrategiesFreeText")]
   
   # percent of subjects RANDOMIZED to treat=1 who made a pledge about each food
-  #  if someone was randomized, then dropped out of W1, but then came back for W2
-  # conservatively count these people as not having made a pledge
+  #  if someone was randomized, then dropped out of W1, but then came back for W2,
+  # we conservatively count these people as not having made a pledge
   # these people have "" for the pledge
   t = sort( dcc %>%
             filter(treat == 1) %>%
@@ -537,23 +550,26 @@ if ( study == 3 ) {
                                                                         "Yes, I pledge to stop eating this food") ) ) ),
             decreasing = TRUE )
   
-  # confirm sample sizes
-  temp = dcc %>%
-    filter(treat == 1) %>%
-    summarise_at( .vars = pledgeVars,
-                  .funs = function(x) length(x) )
-  expect_equal( all.equal( unique( as.numeric(temp) ), sum(dcc$treat == 1) ),
-                TRUE )
-  
+  # sanity check: confirm that the denominator count for each food-specific pledge matches
+  #  the number of subjects randomized to treat=1
+  if ( run.sanity == TRUE ) {
+    temp = dcc %>%
+      filter(treat == 1) %>%
+      summarise_at( .vars = pledgeVars,
+                    .funs = function(x) length(x) )
+    expect_equal( all.equal( unique( as.numeric(temp) ), sum(dcc$treat == 1) ),
+                  TRUE )
+  }
+
+  # any pledge ("reduce" or "eliminate")
   t = sort(t)
-  
   update_result_csv( name = paste( "Perc any pledge", names(t) ),
                      value = as.numeric(t) )
   
-  
   # any "eliminate" pledge or any "reduce" pledge
+  ind = (dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE) | (dcc$madeReducePledge[ dcc$treat == 1] == TRUE)
   update_result_csv( name = paste( "Perc at least one pledge" ),
-                     value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE | dcc$madeReducePledge[ dcc$treat == 1] == TRUE ) ) )
+                     value = round( 100*mean(ind) ) )
   
   update_result_csv( name = paste( "Perc at least one eliminate pledge" ),
                      value = round( 100*mean(dcc$madeEliminatePledge[ dcc$treat == 1] == TRUE) ) )
@@ -562,51 +578,31 @@ if ( study == 3 ) {
                      value = round( 100*mean(dcc$madeReducePledge[ dcc$treat == 1] == TRUE) ) )
   
   
-  # table( dcc$pledgeOtherMeat[dcc$treat==1],
-  #        dcc$madeReducePledge[ dcc$treat == 1] )
-  
-}
+  # sanity checks on food-specific pledge counts
+  if ( run.sanity == TRUE ) {
+    for ( .var in pledgeVars ) {
+      
+      # randomized to treat=1
+      temp = dcc[ dcc$treat == 1, ]
+      denom = nrow(temp)
+      num = sum( temp[[.var]] %in% c("Yes, I pledge to eat this food less often",
+                                "Yes, I pledge to stop eating this food") )
+      
+      
+      # check percentage making any pledge for this food
+      expect_equal( round( 100*(num/denom) ),
+                    as.numeric(t[.var]) ) 
+      
+    }
+    cat("\nDone checking all food-specific pledge percentages; yay")
+  }
 
-# for sanity check, maybe
-# dcc %>%
-#   filter(treat == 1) %>%
-#   summarise( mean(pledgeChicken %in% c("Yes, I pledge to eat this food less often",
-#                                        "Yes, I pledge to stop eating this food") ) )
-# 
-# 
-# 
-# # note that this could be equal to "" (i.e., not answered)
-# #  if someone was randomized, then dropped out of W1, 
-# #  but then came back for W2
-# # conservatively count these people as not having made a pledge
-# table(dcc$pledgeChicken[dcc$treat==1])
-# (14+40)/(14+40+17+30)
-# 
-# 
+}  # end "if (study == 3)"
+
 
 
 
 # 5. TABLE 3: EFFECT MODIFIERS ------------------------------------------------
-
-# Effect modifiers: We will examine two-way interactions of intervention group assignment
-# with each of the following variables from the baseline demographic data: sex, age, race/ethnicity,
-# individual political affiliation, education level, and the political liberalism vs. conservatism
-# of the participant’s current county of residence. We will use the primary consumption outcome
-# for this analysis. For the latter, we will use an existing database (MIT Election Data and
-# Science Lab, 2018) to calculate the proportion of voters in the participant’s county who voted
-# for the Democratic presidential candidate from among all voters who voted for either the
-# Democratic or the Republican candidate. To do so, we will include these candidate effect
-# modifiers simultaneously in a generalized least-squares model with heteroskedasticity-consistent
-# robust standard errors, which is similar to the Welch’s t-test for the multivariable
-# case. We anticipate that some effect modifiers may have very few observations in some
-# categories (e.g., race/ethnicity). As needed, we may collapse variables into fewer categories
-# for these analyses (e.g., Causasian vs. non-Caucasian), with the categories determined by
-# the distribution of responses, and/or exclude categories with relatively few responses (e.g.,
-# political Independents). We will report the point estimates for each two-way interaction,
-# again reporting inference both with and without Bonferroni correction (counting one test per
-# effect modifier regression coefficient). We will also report the combination of effect modifiers
-# that was associated with the largest effect size, representing the participant demographic to
-# which the intervention might best be targeted.
 
 
 section = 5
@@ -622,7 +618,8 @@ CreateTableOne( vars = effect.mods,
 
 if ( exists("res.raw") ) rm(res.raw)
 
-# Study 2 doesn't use MI, so is handled in next section
+# only proceed for Studies 1 and 3 because Study 2 doesn't use MI
+#  so Study 2 is handled in next section
 if ( study %in% c(1,3) ) {
   
   yName = "mainY"
@@ -651,7 +648,7 @@ if ( study %in% c(1,3) ) {
   # ~~ Save Both Raw and Cleaned-Up Results Tables ----
   # in order to have the unrounded values
   setwd(results.dir)
-  write.csv(res.raw, "effect_mods_MI.csv")
+  write.csv(res.raw, "5_effect_mods_MI.csv")
   
   # cleaned-up version
   # round it
@@ -668,7 +665,7 @@ if ( study %in% c(1,3) ) {
   
   
   setwd(results.dir)
-  write.csv(res.nice, "effect_mods_MI_pretty.csv")
+  write.csv(res.nice, "5_effect_mods_MI_pretty.csv")
   
   
   # ~~ Sanity Check ----
@@ -835,7 +832,7 @@ ols = lm( eval( parse( text = string ) ), data = d )
 res.raw = my_ols_hc0_all( dat = d, ols = ols, yName = yName )
 
 setwd(results.dir)
-write.csv(res.raw, "effect_mods_cc.csv")
+write.csv(res.raw, "5_table_effect_mods_cc.csv")
 
 
 # cleaned-up version
@@ -851,7 +848,7 @@ res.nice = data.frame( coef = rowNames,
 
 
 setwd(results.dir)
-write.csv(res.nice, "effect_mods_cc_pretty.csv")
+write.csv(res.nice, "5_table_effect_mods_cc_pretty.csv")
 
 # for pasting into Supplement
 if ( study == 2 ) {
@@ -860,7 +857,7 @@ if ( study == 2 ) {
   
   write.table( print( xtable( res.nice,
                               include.rownames = FALSE ) ),
-               file = "supp_table2_effect_mods_cc_pretty_tex.txt"
+               file = "5_effect_mods_cc_pretty_tex.txt"
   )
 }
 
@@ -870,8 +867,8 @@ if ( study == 2 ) {
 
 if ( (study == 1) & run.sanity == TRUE ) {
   setwd(results.dir)
-  res.cc = read.csv("effect_mods_cc.csv")
-  res.mi = read.csv("effect_mods_mi.csv")
+  res.cc = read.csv("5_table_effect_mods_cc.csv")
+  res.mi = read.csv("5_table_effect_mods_mi.csv")
   row.names(res.cc) == row.names(res.mi)
   
   ggplot( data = data.frame( cc = res.cc$est, mi = res.mi$est ),
@@ -901,7 +898,6 @@ if ( (study == 1) & run.sanity == TRUE ) {
   # estimates are very similar, which makes sense given
   #  how little missing data there is
   # SEs larger by about 20% with MI 
-  
 }
 
 
@@ -912,14 +908,6 @@ if ( (study == 1) & run.sanity == TRUE ) {
 
 # ~ SUBJECT AWARENESS ------------------------------------------------ 
 
-# To assess the possible extent of subject awareness of the intervention,
-# we will report the proportions of subjects answering the probe correctly within each treatment
-# group. Because the awareness probe will be completed after outcome measurement, we
-# will not condition on subject awareness in analysis (e.g., via subset analyses or covariate
-# adjustment) to avoid inducing collider bias.
-
-
-
 update_result_csv( name = "Perc aware tx group",
                    value = round( 100 * mean(dcc$aware[ dcc$treat == 1 ], na.rm = TRUE ), 0 ) )
 
@@ -929,12 +917,6 @@ update_result_csv( name = "Perc aware cntrl group",
 
 
 # ~ NON-DIFFERENTIAL MEASUREMENT ERROR ------------------------------------------------
-
-# Anticipating that there may be more non-differential
-# measurement error in subjects’ reporting of serving sizes than in their reporting of consumption
-# frequencies (e.g., because subjects have difficulty estimating volumes of food), we will
-# repeat the primary analysis using only frequencies, rather than total amounts consumed, as
-# the outcome.
 
 if ( study == 1 ) {
   # repeat main, MI analysis with the dichotomized outcome
@@ -969,17 +951,6 @@ if ( study == 1 ) {
 
 # ~ EFFECTS OF INTERVENTION NONCOMPLIANCE ------------------------------------------------ 
 
-# To supplement the primary analyses conducted
-# by intention to treat, we will account for possible noncompliance with the intervention by
-# treating intervention assignment as an instrumental variable for passing the manipulation
-# check (Angrist et al., 1996). This analysis estimates a local average treatment effect (Angrist
-# et al., 1996) under the exclusion restriction assumption. Because this assumption may
-# be violated for manipulation-check items, we may instead conduct a similar instrumental
-# variables analysis using methods that relax the exclusion restriction (Flores & Flores-Lagunes,
-# 2013) if relevant methodological extensions, currently underway, are ready at the time of
-# analysis.
-
-# I think this is only relevant for Study 1? And maybe 3?
 
 if ( study == 1 ) {
   # ~~ Look at CC Data ------------------------------------------------
@@ -1036,29 +1007,5 @@ if ( study == 1 ) {
   
   
 }
-
-
-
-
-
-# ~ DUMB VERSIONS OF MAIN ANALYSES ------------------------------------------------
-
-# CC only
-# these are just as additional sanity checks and won't exactly match the results in paper
-
-if ( study == 3 ) {
-  
-  # mainY treatment effect
-  
-  # targetDemoSimple subset
-  
-  #bm: stopped here
-}
-
-
-
-
-
-
 
 

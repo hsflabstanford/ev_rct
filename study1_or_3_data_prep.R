@@ -24,7 +24,7 @@ M = 10
 
 # which study's data to prep?
 # must be 1 or 3
-study = 1
+study = 3
 # for making strings
 if ( study %in% c(1,3) ) study.string = paste("Study", study, sep = " ") else stop("Invalid study spec.")
 
@@ -58,18 +58,18 @@ county.prepped.data.dir = here("Data/Prepped")
 # includes the raw imputations because we use county to help impute
 # raw (identifiable) data are stored a level up from the public dirs
 raw.data.dir = str_replace_all( string = here(),
-                 pattern = "Linked to OSF \\(EatingVeg\\)",
-                 replacement = "Data (IDENTIFIABLE)/Raw" )
+                                pattern = "Linked to OSF \\(EatingVeg\\)",
+                                replacement = "Data (IDENTIFIABLE)/Raw" )
 # for intermediate steps that still have county variable
 prepped.data.dir.private = str_replace_all( string = here(),
-                                pattern = "Linked to OSF \\(EatingVeg\\)",
-                                replacement = "Data (IDENTIFIABLE)/Prepped intermediate" )
-imputed.dir.private = str_replace_all( string = here(),
                                             pattern = "Linked to OSF \\(EatingVeg\\)",
-                                            replacement = paste( "Data (IDENTIFIABLE)/Prepped intermediate/Study ",
-                                                                 study,
-                                                                 "/Raw imputed datasets",
-                                                                 sep = ""  ) )
+                                            replacement = "Data (IDENTIFIABLE)/Prepped intermediate" )
+imputed.dir.private = str_replace_all( string = here(),
+                                       pattern = "Linked to OSF \\(EatingVeg\\)",
+                                       replacement = paste( "Data (IDENTIFIABLE)/Prepped intermediate/Study ",
+                                                            study,
+                                                            "/Raw imputed datasets",
+                                                            sep = ""  ) )
 
 
 code.dir = here("Code (git)")
@@ -218,7 +218,7 @@ setwd(county.prepped.data.dir)
 cn = read.csv("counties_prepped.csv")
 
 w1 = left_join( w1, cn, 
-               by = "stateCounty" )
+                by = "stateCounty" )
 
 if ( study == 1 ) expect_equal( nrow(w1), 650 )
 if ( study == 3 ) expect_equal( nrow(w1), 797 )
@@ -318,7 +318,7 @@ if ( study == 3 ) {
     w1.finishedQuestionnaire,
     w1.IPlat,
     w1.IPlong,
-
+    
     w1.problemsBin,
     w1.problemsText )
 }
@@ -388,7 +388,7 @@ if ( run.sanity == TRUE ){
                             demoVars[ !demoVars == "covid" ],
                             "passCheck") )
   }
-
+  
   t = CreateTableOne(data = temp, strata = "treat")
   setwd(results.dir)
   setwd("Sanity checks after W1")
@@ -686,11 +686,11 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
   
   # just to get the predictor matrix and method template
   ini = mice(d, m=1, maxit = 0 )
-
+  
   # check default methods
   # all PMM, as desired
   ini$method
-
+  
   # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
   myPred = ini$pred
@@ -759,7 +759,7 @@ if ( impute.from.scratch == TRUE & study != 3 ) {
 
 ##### Read in Saved Imputations #####
 
-if ( study != 3 ) {
+if ( study == 1 ) {
   # we're doing this even if impute.from.scratch=TRUE to have same data format
   # i.e., a list of imputed datasets instead of a mids object
   setwd(imputed.dir.private)
@@ -825,7 +825,7 @@ if ( run.sanity == TRUE ) {
   myBeef = beef_Freq * d$beef_Ounces
   # overwrite spurious NAs that happen when frequency is 0, so oz are NA
   myBeef[ beef_Freq == 0 ] = 0 
-   
+  
   expect_equal(myBeef, d2$beef)
   
   ### Reproduce One Psych Variable: Speciesism ###
@@ -941,7 +941,7 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
                        function(x) any(is.na(x)) ) # should be FALSE
   if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
   
-  cbind(d2$chicken, complete(imps,1)$chicken)
+  #cbind(d2$chicken, complete(imps,1)$chicken)
   
   
   ##### Save Imputations for Reproducibility #####
@@ -952,7 +952,8 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
     save( imps, file = "imputed_datasets.RData" )
     
     for (i in 1:M) {
-      write.csv( complete(imps,i),
+      impDat = complete(imps, i)
+      write.csv( impDat,
                  paste("imputed_dataset_prepped", i, ".csv", sep="") )
     }
   }
@@ -961,10 +962,10 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
 
 
 
-##### Recode the Imputations #####
+##### Recode the Imputations - Either Study #####
 
-# not needed for Study 3, for which we imputed derived vars directly
-if ( study != 3 ) {
+# Study 1: Need to make derived vars
+if ( study == 1 ) {
   # saves a new version of the imputation dataset (does not overwrite the old one)
   setwd(imputed.dir.private)
   for ( i in 1:M ) {
@@ -977,6 +978,39 @@ if ( study != 3 ) {
     write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
   }
 }
+
+
+# Study 3: Only need to check that there are no ID'able variables and save to the public repo
+
+
+if ( study == 3 ) {
+  
+  # first read imps back in
+  # we're doing this even if impute.from.scratch=TRUE to have same data format
+  # i.e., a list of imputed datasets instead of a mids object
+  setwd(imputed.dir.private)
+  
+  # avoid trying to recode other files in that directory
+  toRecode = paste("imputed_dataset_prepped", 1:M, ".csv", sep="")
+  
+  imps = lapply( toRecode,
+                 function(x) suppressMessages(read_csv(x)) )
+  
+  # saves a new version of the imputation dataset (does not overwrite the old one)
+  setwd(imputed.dir.private)
+  for ( i in 1:M ) {
+    imp = as.data.frame( imps[[i]] )
+    
+    # remove county variables to deidentify
+    if ( "stateCounty" %in% names(imp) ) imp = imp %>% select(-stateCounty)
+    if ( "county" %in% names(imp) ) imp = imp %>% select(-county)
+    
+    # save into the public directory now that the datasets are de-ID'ed
+    setwd(imputed.data.dir)
+    write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
+  }
+}
+
 
 
 

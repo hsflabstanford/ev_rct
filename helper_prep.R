@@ -3,13 +3,13 @@
 # read/write intermediate work
 write_interm = function(x, filename){
   setwd(prepped.data.dir)
-  setwd("Intermediate work")
+  #setwd("Intermediate work")
   write.csv(x, filename)
 }
 
 read_interm = function(filename){
   setwd(prepped.data.dir)
-  setwd("Intermediate work")
+  #setwd("Intermediate work")
   read.csv(filename)
 }
 

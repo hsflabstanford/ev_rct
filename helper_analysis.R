@@ -310,7 +310,6 @@ analyze_all_outcomes = function(missMethod) {
                     family = binomial(link="log") )
         mod2Inf = confint(mod2)
         
-        browser()
         mn0 = mean( d$intentionReduce[d$treat == 0] )
         mn1 = mean( d$intentionReduce[d$treat == 1] )
         
@@ -406,7 +405,6 @@ analyze_all_outcomes = function(missMethod) {
     
     # cleaned-up version
     # round it
-    #browser()
     res.raw = res.raw %>% mutate_at( names(res.raw)[ !names(res.raw) %in% c("analysis", "analysis.1", "group", "group.specific", "note" ) ], function(x) round(x,2) )
     
     if ( missMethod == "MI") {
@@ -578,8 +576,6 @@ my_ttest = function( yName, dat ){
                # Hedges' g by default
                measure = "SMD")
   summ = summary(es)
-  
-  #browser()
   
   return( data.frame( # documentary - control
     est = tres$estimate[2] - tres$estimate[1],

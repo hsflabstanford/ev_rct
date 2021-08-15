@@ -461,30 +461,35 @@ if ( run.sanity == TRUE & study == 2 ) {
     m0 = mean( dcc[[yName]][ dcc$treat == 0], na.rm = TRUE )
     m1 = mean( dcc[[yName]][ dcc$treat == 1], na.rm = TRUE )
     
-    #bm
     expect_equal( round( m0, 2 ),
                   res.CC$res.raw$mn0[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     
-    ### Check OLS Results ###
-    
+    ### Check T-Test Results ###
     string = paste( yName, " ~ treat", sep = "" )
     
-    # all outcomes, even the binary one, use OLS for the column "est"
-    ols = lm( eval( parse( text = string ) ), data = dat )
-    est = coef(ols)["treat"]
+    # all outcomes, even the binary one, use t-test for the column "est"
+    tres = t.test( dat[[yName]] ~ treat,
+                   data = dcc,
+                   var.equal = FALSE )
     
-    # robust SE
-    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
-    
-    expect_equal( as.numeric(round( est, 2)),
+    # point estimate
+    expect_equal( round(m1-m0, 2),
                   res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
-    expect_equal( round( se, 2 ),
+    
+    # SE
+    expect_equal( round( tres$stderr, 2 ),
                   res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     
-    ### Check Effect Sizes ###      
+    # CI limits
+    # note that t.test contrast is coded backwards
+    expect_equal( round( -tres$conf.int[2], 2 ),
+                  res.CC$res.raw$lo[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    expect_equal( round( -tres$conf.int[1], 2 ),
+                  res.CC$res.raw$hi[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     
     
-    
+    ### Check SMDs (Or RR For intentionReduce) ###      
     # now intentionReduce needs to be handled differently because it's binary, 
     #  so "g" is actually a risk ratio
     if ( yName == "intentionReduce") {
@@ -492,7 +497,19 @@ if ( run.sanity == TRUE & study == 2 ) {
       mod = glm( eval( parse( text = string ) ),
                  family = binomial(link = "log"),
                  data = dat )
+      CIs = exp( confint(mod) )
       
+      RR = as.numeric( exp( coef(mod)["treat"] ) )
+      
+      expect_equal( round(RR, 2),
+                    res.CC$res.raw$g[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+      
+      
+      expect_equal( round( CIs["treat", "2.5 %"], 2),
+                    res.CC$res.raw$g.lo[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+      
+      expect_equal( round( CIs["treat", "97.5 %"], 2),
+                    res.CC$res.raw$g.hi[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
       
     } else {
       
@@ -500,48 +517,27 @@ if ( run.sanity == TRUE & study == 2 ) {
       # recode to be more intuitive
       # as.factor in RHS to avoid annoying warnings
       library(effsize)
-      es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
+      es = cohen.d( dcc[[yName]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
+      
+      expect_equal( round( es$estimate, 2),
+                    res.CC$res.raw$g[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+      
+      expect_equal( round( sqrt(es$var), 2),
+                    res.CC$res.raw$g.se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+      
+      expect_equal( as.numeric( round( es$conf.int[1], 2) ),
+                    res.CC$res.raw$g.lo[ res.CC$res.raw$analysis == paste( yName, "CC" ) ],
+                    tol = 0.02 )  # because helper fn uses a different fn (escalc) whose inference is a tiny bit different
+      
+      expect_equal( as.numeric( round( es$conf.int[2], 2) ),
+                    res.CC$res.raw$g.hi[ res.CC$res.raw$analysis == paste( yName, "CC" ) ],
+                    tol = 0.02 )
     }
-    
-    
-    
+  
     
     cat( paste("\nJust checked Study 2, CC, outcome", yName) )
   }
-  
-  
-  # if ( exists("res.raw") ) rm(res.raw)
-  # for ( i in vars ){
-  #   
-  #   test = t.test( d[[i]] ~ (d$treat == FALSE), na.rm = TRUE  )
-  #   
-  #   m0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE )
-  #   m1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE )
-  #   
-  #   # Hedges' g
-  #   # recode to be more intuitive
-  #   # as.factor in RHS to avoid annoying warnings
-  #   library(effsize)
-  #   es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
-  #   
-  #   new.row = data.frame( outcome = i,
-  #                         mn0 = m0,
-  #                         mn1 = m1,
-  #                         med0 = median( d[[i]][ d$treat == 0], na.rm = TRUE ),
-  #                         med1 = median( d[[i]][ d$treat == 1], na.rm = TRUE ),
-  #                         mn.diff = m1-m0,
-  #                         lo = test$conf.int[1],
-  #                         hi = test$conf.int[2],
-  #                         pval = test$p.value,
-  #                         g = es$estimate,
-  #                         g.lo = es$conf.int[1],
-  #                         g.hi = es$conf.int[2],
-  #                         pval2 = NA, # NA because will be redundant with previous p-value for continuous outcomes
-  #                         note = NA) 
-  #   if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
-  # }
-  
-  
+
 }
 
 

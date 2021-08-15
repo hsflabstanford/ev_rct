@@ -1,7 +1,6 @@
 
 # META-NOTES ------------------------------------------------
 
-
 # This script writes results locally and to Overleaf
 
 # Tables are numbered based on the section number of `analysis.R` that produces them, not the table numbers in the manuscript
@@ -20,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 2
+study = 1
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -364,6 +363,75 @@ if ( (study %in% c(1,3)) & run.sanity == TRUE ) {
 
 
 # Manually reproduce est and SE in res.raw for all outcomes
+
+
+# reproduce MI results for Study 1
+if ( run.sanity == TRUE & study == 1 ) {
+  
+  # names of outcomes to check
+  toCheck = unlist( lapply( strsplit( res.MI$res.raw$analysis, " MI" ), function(x) x[[1]] ) )
+  
+  # check MI results (est and CI)
+  for (yName in toCheck) {
+    
+    my.mi.res = lapply( imps, function(.imp) {
+      
+      tres = t.test( .imp[[yName]] ~ treat,
+                     data = .imp,
+                     var.equal = FALSE )
+      
+      # OH NO 
+      # THERE IS MISSING DATA IN THE IMPUTED FOOD VARIBALES!!!!
+      # FML!!
+      # BM
+      data.frame( est = mean( .imp[[yName]][ .imp$treat == 1 ] ) - mean( .imp[[yName]][ .imp$treat == 0 ] ),
+                          se = tres$stderr ) 
+    }  ) 
+    
+    my.mi.res = do.call( rbind, my.mi.res )
+    
+    # pool via Rubin's Rules and confirm above results
+    M = length(imps)
+    my.est = mean(my.mi.res$est)
+    # between-imp variance
+    B = var(my.mi.res$est)
+    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
+    
+    expect_equal( round( my.est, 2),
+                  res.MI$res.raw$est[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    expect_equal( round( my.se, 2 ),
+                  res.MI$res.raw$se[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    
+    cat( paste("\nJust checked Study 3, MI, outcome", yName) )
+  }
+  
+  # check CC results
+  for (yName in toCheck) {
+    dat = dcc
+    string = paste( yName, " ~ treat + targetDemographics", sep = "" )
+    # handle the weird one
+    if ( yName == "mainY targetDemoSimple-subset") {
+      string = paste( "mainY ~ treat + targetDemographics", sep = "" )
+      dat = dat[ dat$targetDemoSimple == TRUE, ]
+    }  
+    
+    
+    ols = lm( eval( parse( text = string ) ), data = dat )
+    est = coef(ols)["treat"]
+    
+    # robust SE
+    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+    
+    expect_equal( as.numeric(round( est, 2)),
+                  res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    expect_equal( round( se, 2 ),
+                  res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    cat( paste("\nJust checked Study 3, CC, outcome", yName) )
+  }
+}
+
+
 
 # reproduce MI results for study 3
 # controls for targetDemographics

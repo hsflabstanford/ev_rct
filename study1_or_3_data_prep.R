@@ -24,7 +24,7 @@ M = 10
 
 # which study's data to prep?
 # must be 1 or 3
-study = 3
+study = 1
 # for making strings
 if ( study %in% c(1,3) ) study.string = paste("Study", study, sep = " ") else stop("Invalid study spec.")
 
@@ -678,6 +678,7 @@ w1Vars = c( "treat",
 impModelVars = w1Vars[ !w1Vars == "state" ]
 
 
+#bm: NOW BREAKS FOR STUDY 1 NOW THAT WE'RE NOT SUBSETTING ON HAVING FINISHED W2
 # we are NOT imputing here for Study 3; that one needs to be handled AFTER making derived vars
 if ( impute.from.scratch == TRUE & study != 3 ) {
   
@@ -926,7 +927,7 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
   myMethod[ !names(myMethod) %in% toAnalyze ] = ""
   table(myMethod)
   
-  # imputing secfoodY variables seem to cause issues
+  # imputing secfoodY variables themselves seem to cause issues
   imps = mice( d2,
                m=M,  
                predictorMatrix = myPred,

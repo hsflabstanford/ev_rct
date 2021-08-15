@@ -2,8 +2,6 @@
 rm(list=ls())
 
 
-# BM: WAS ABOUT TO START DE-ID'ING THIS SCRIPT AS WELL. THIS SCRIPT MIGHT ALSO NEED SANITY CHECKS.
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                      PRELIMINARIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #

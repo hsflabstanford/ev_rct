@@ -358,11 +358,8 @@ if ( (study %in% c(1,3)) & run.sanity == TRUE ) {
 
 # ~~ Sanity Checks on Main Analyses  ----------------------
 
-#@need to do sanity checks for MI analyses for Study 2
-# might be same as below
 
-
-# Manually reproduce est and SE in res.raw for all outcomes
+# Manually reproduce est and SE in res.raw for each outcome
 
 
 # reproduce MI results for Study 1
@@ -380,10 +377,6 @@ if ( run.sanity == TRUE & study == 1 ) {
                      data = .imp,
                      var.equal = FALSE )
       
-      # OH NO 
-      # THERE IS MISSING DATA IN THE IMPUTED FOOD VARIBALES!!!!
-      # FML!!
-      # BM
       data.frame( est = mean( .imp[[yName]][ .imp$treat == 1 ] ) - mean( .imp[[yName]][ .imp$treat == 0 ] ),
                           se = tres$stderr ) 
     }  ) 
@@ -396,118 +389,58 @@ if ( run.sanity == TRUE & study == 1 ) {
     # between-imp variance
     B = var(my.mi.res$est)
     my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
-    
+
     expect_equal( round( my.est, 2),
                   res.MI$res.raw$est[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    
     expect_equal( round( my.se, 2 ),
                   res.MI$res.raw$se[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
     
-    cat( paste("\nJust checked Study 3, MI, outcome", yName) )
+    
+    
+    cat( paste("\nJust checked Study 1, MI, outcome", yName) )
   }
   
   # check CC results
   for (yName in toCheck) {
     dat = dcc
-    string = paste( yName, " ~ treat + targetDemographics", sep = "" )
-    # handle the weird one
-    if ( yName == "mainY targetDemoSimple-subset") {
-      string = paste( "mainY ~ treat + targetDemographics", sep = "" )
-      dat = dat[ dat$targetDemoSimple == TRUE, ]
-    }  
+    
+    tres = t.test( dcc[[yName]] ~ treat,
+                   data = dcc,
+                   var.equal = FALSE )
+    
+    mn0 = mean( dcc[[yName]][ dcc$treat == 0 ] )
+    mn1 = mean( dcc[[yName]][ dcc$treat == 1 ] )
+    med0 = median( dcc[[yName]][ dcc$treat == 0 ] )
+    med1 = median( dcc[[yName]][ dcc$treat == 1 ] )
+    
+
+    
+    expect_equal( as.numeric(round( mn1, 2)),
+                  res.CC$res.raw$mn1[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    expect_equal( as.numeric(round( mn0, 2)),
+                  res.CC$res.raw$mn0[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    expect_equal( as.numeric(round( med1, 2)),
+                  res.CC$res.raw$med1[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    expect_equal( as.numeric(round( med0, 2)),
+                  res.CC$res.raw$med0[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     
     
-    ols = lm( eval( parse( text = string ) ), data = dat )
-    est = coef(ols)["treat"]
-    
-    # robust SE
-    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
-    
-    expect_equal( as.numeric(round( est, 2)),
+    expect_equal( as.numeric(round( mn1 - mn0, 2)),
                   res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
-    expect_equal( round( se, 2 ),
+    
+    expect_equal( round( tres$stderr, 2 ),
                   res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
     
-    cat( paste("\nJust checked Study 3, CC, outcome", yName) )
+    expect_equal( round( tres$p.value, 2 ),
+                  res.CC$res.raw$pval[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    cat( paste("\nJust checked Study 1, CC, outcome", yName) )
   }
 }
-
-
-
-# reproduce MI results for study 3
-# controls for targetDemographics
-if ( run.sanity == TRUE & study == 3 ) {
-  
-  # names of outcomes to check
-  toCheck = unlist( lapply( strsplit( res.MI$res.raw$analysis, " MI" ), function(x) x[[1]] ) )
-  
-  # check MI results (est and CI)
-  for (yName in toCheck) {
-    
-    my.mi.res = lapply( imps, function(.imp) {
-      string = paste( yName, " ~ treat + targetDemographics", sep = "" )
-      # handle the weird one
-      if ( yName == "mainY targetDemoSimple-subset") {
-        string = paste( "mainY ~ treat + targetDemographics", sep = "" )
-        .imp = .imp[ .imp$targetDemoSimple == TRUE, ]
-      }
-      
-      ols = lm( eval( parse( text = string ) ), data = .imp )
-      est = coef(ols)["treat"]
-      
-      # robust SE
-      se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
-      
-      t = as.numeric( abs(est / se) )
-      pval = 2 * ( 1 - pt(t, df = ols$df.residual) )
-      
-      # only extract this one coefficient
-      return( data.frame( est = est, se = se, pval = pval ) )
-    }  ) 
-    
-    my.mi.res = do.call( rbind, my.mi.res )
-    
-    # pool via Rubin's Rules and confirm above results
-    M = length(imps)
-    my.est = mean(my.mi.res$est)
-    # between-imp variance
-    B = var(my.mi.res$est)
-    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
-    
-    expect_equal( round( my.est, 2),
-                  res.MI$res.raw$est[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
-    expect_equal( round( my.se, 2 ),
-                  res.MI$res.raw$se[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
-    
-    cat( paste("\nJust checked Study 3, MI, outcome", yName) )
-  }
-  
-  # check CC results
-  for (yName in toCheck) {
-    dat = dcc
-    string = paste( yName, " ~ treat + targetDemographics", sep = "" )
-    # handle the weird one
-    if ( yName == "mainY targetDemoSimple-subset") {
-      string = paste( "mainY ~ treat + targetDemographics", sep = "" )
-      dat = dat[ dat$targetDemoSimple == TRUE, ]
-    }  
-    
-    
-    ols = lm( eval( parse( text = string ) ), data = dat )
-    est = coef(ols)["treat"]
-    
-    # robust SE
-    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
-    
-    expect_equal( as.numeric(round( est, 2)),
-                  res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
-    expect_equal( round( se, 2 ),
-                  res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
-    
-    cat( paste("\nJust checked Study 3, CC, outcome", yName) )
-  }
-}
-
-
 
 
 
@@ -601,12 +534,91 @@ if ( run.sanity == TRUE & study == 2 ) {
                     res.CC$res.raw$g.hi[ res.CC$res.raw$analysis == paste( yName, "CC" ) ],
                     tol = 0.02 )
     }
-  
+    
     
     cat( paste("\nJust checked Study 2, CC, outcome", yName) )
   }
-
+  
 }
+
+
+# reproduce MI results for study 3
+# controls for targetDemographics
+if ( run.sanity == TRUE & study == 3 ) {
+  
+  # names of outcomes to check
+  toCheck = unlist( lapply( strsplit( res.MI$res.raw$analysis, " MI" ), function(x) x[[1]] ) )
+  
+  # check MI results (est and CI)
+  for (yName in toCheck) {
+    
+    my.mi.res = lapply( imps, function(.imp) {
+      string = paste( yName, " ~ treat + targetDemographics", sep = "" )
+      # handle the weird one
+      if ( yName == "mainY targetDemoSimple-subset") {
+        string = paste( "mainY ~ treat + targetDemographics", sep = "" )
+        .imp = .imp[ .imp$targetDemoSimple == TRUE, ]
+      }
+      
+      ols = lm( eval( parse( text = string ) ), data = .imp )
+      est = coef(ols)["treat"]
+      
+      # robust SE
+      se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+      
+      t = as.numeric( abs(est / se) )
+      pval = 2 * ( 1 - pt(t, df = ols$df.residual) )
+      
+      # only extract this one coefficient
+      return( data.frame( est = est, se = se, pval = pval ) )
+    }  ) 
+    
+    my.mi.res = do.call( rbind, my.mi.res )
+    
+    # pool via Rubin's Rules and confirm above results
+    M = length(imps)
+    my.est = mean(my.mi.res$est)
+    # between-imp variance
+    B = var(my.mi.res$est)
+    my.se = sqrt( mean(my.mi.res$se^2) + ( 1 + (1/M) ) * B )
+    
+    expect_equal( round( my.est, 2),
+                  res.MI$res.raw$est[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    expect_equal( round( my.se, 2 ),
+                  res.MI$res.raw$se[ res.MI$res.raw$analysis == paste( yName, "MI" ) ] )
+    
+    cat( paste("\nJust checked Study 3, MI, outcome", yName) )
+  }
+  
+  # check CC results
+  for (yName in toCheck) {
+    dat = dcc
+    string = paste( yName, " ~ treat + targetDemographics", sep = "" )
+    # handle the weird one
+    if ( yName == "mainY targetDemoSimple-subset") {
+      string = paste( "mainY ~ treat + targetDemographics", sep = "" )
+      dat = dat[ dat$targetDemoSimple == TRUE, ]
+    }  
+    
+    
+    ols = lm( eval( parse( text = string ) ), data = dat )
+    est = coef(ols)["treat"]
+    
+    # robust SE
+    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+    
+    expect_equal( as.numeric(round( est, 2)),
+                  res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    expect_equal( round( se, 2 ),
+                  res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    cat( paste("\nJust checked Study 3, CC, outcome", yName) )
+  }
+}
+
+
+
+
 
 
 # ~~ One-Off Stats for Study 2 ------------------------------------------------
@@ -1126,7 +1138,7 @@ if ( study == 1 ) {
   # confirm the fact that the first-stage model has the same p-value for every imputation
   # first-stage model (linear probability model; ignore the inference):
   summary( lm( passCheck ~ treat, data = imps[[3]]) )
-  # this seems to be where where the weak instruments p-value is coming from
+  # this seems to be the origin of the weak instruments p-value
   summary( ivreg(mainY ~ passCheck | treat, data = imps[[3]]), diagnostics = TRUE )
   
   

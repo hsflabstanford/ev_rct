@@ -644,134 +644,134 @@ write_interm(d, "d_intermediate_1.csv")
 # an actual mistake in data collection, though we may conduct secondary analyses excluding
 # outlying subjects.
 
-# redo imps here
-setwd(prepped.data.dir.private)
-setwd(study.string)
-d = read_interm("d_intermediate_1.csv")
-
-# look at missingness patterns
-Pmiss = apply( d, 2, function(x) mean( is.na(x) ) )
-sort(Pmiss)
-# makes sense; for Study 1:
-#  - all baseline variables have 0 missingness
-#  - F/U variables usually have exactly 11.6% missingness because that's the attrition rate
-#  - except for the "ounces" variables, which are additionally missing for subjects who said they 
-#      never ate that particular food
-
-##### Make Imputations #####
-
-# variables to be imputed: those measured at follow-up
-# these are the only vars that can have missing data
-w2Vars = c(foodVars,
-           names(w2)[ grepl(pattern = "spec", x = names(w2) ) ],
-           names(w2)[ grepl(pattern = "dom", x = names(w2) ) ],
-           names(w2)[ grepl(pattern = "activ", x = names(w2) ) ],
-           names(w2)[ grepl(pattern = "guessPurpose", x = names(w2) ) ],
-           names(w2)[ grepl(pattern = "import", x = names(w2) ) ],
-           "covid" )
-
-# variables to be used in imputation model:
-# "real" variables measured at baseline and the F/U variables
-w1Vars = c( "treat",
-            demoVars )
-# state has too many categories to work well as predictor
-impModelVars = w1Vars[ !w1Vars == "state" ]
-
-
-#bm: NOW BREAKS FOR STUDY 1 NOW THAT WE'RE NOT SUBSETTING ON HAVING FINISHED W2
-# we are NOT imputing here for Study 3; that one needs to be handled AFTER making derived vars
-if ( impute.from.scratch == TRUE & study != 3 ) {
-  
-  ##### Generate Imputations #####
-  library(mice)
-  
-  # just to get the predictor matrix and method template
-  ini = mice(d, m=1, maxit = 0 )
-  
-  # check default methods
-  # all PMM, as desired
-  ini$method
-  
-  # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
-  #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
-  myPred = ini$pred
-  myPred[myPred == 1] = 0
-  # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
-  myPred[ names(d) %in% w2Vars, # vars to be imputed
-          names(d) %in% c(impModelVars, w2Vars) ] = 1  # ...and vars in the imputation model
-  # set diagonals to 0 because a variable can't be used to impute itself
-  diag(myPred) = 0
-  
-  # in order to NOT impute certain vars, also need to set method to ""
-  # o.w. you get cryptic errors about collinearity
-  myMethod = ini$method
-  myMethod[ !names(myMethod) %in% w2Vars ] = ""
-  
-  imps = mice( d,
-               m=M,  
-               predictorMatrix = myPred,
-               method = myMethod,
-               seed = 451)
-  
-  imps$loggedEvents$dep
-  
-  # # useful if you want to jump back to this point by 
-  # #  reading in existing imputations as mids objects
-  # setwd(imputed.data.dir)
-  # load("imputed_datasets.RData")  # load "imps", the mids object
-  
-  # this is prone to crashing R:
-  # plot comparing density of imputed data to observed datas 
-  # https://stefvanbuuren.name/fimd/sec-diagnostics.html
-  # red: imputations, blue: observed
-  # setwd(results.dir)
-  # pdf(file = "imputation_density_plot.pdf",
-  #     width = 15,
-  #     height = 10)
-  # densityplot(imps)
-  # dev.off()
-  
-  # any complaints?
-  unique(imps$loggedEvents)
-  if ( !is.null(imps$loggedEvents) ) warning("Imputation trouble: Imputations have logged events!")
-  # all are about using ridge penalty for collinearity
-  # not too worrisome
-  
-  # make sure there is no missing data in the imputations
-  any.missing = apply( complete(imps,1), 2, function(x) any(is.na(x)) ) # should be FALSE
-  if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
-  
-  ##### Save Imputations for Reproducibility #####
-  if ( overwrite.res == TRUE ) {
-    
-    # save imputations for reproducibility
-    # these raw imputed datasets still have county variable, so are kept in private dir
-    setwd(imputed.dir.private)
-    save( imps, file = "imputed_datasets.RData" )
-    
-    for (i in 1:M) {
-      write.csv( complete(imps,i),
-                 paste("imputed_dataset_", i, ".csv", sep="") )
-    }
-  }
-  
-} # end impute.from.scratch == TRUE
-
-
-##### Read in Saved Imputations #####
-
-if ( study == 1 ) {
-  # we're doing this even if impute.from.scratch=TRUE to have same data format
-  # i.e., a list of imputed datasets instead of a mids object
-  setwd(imputed.dir.private)
-  
-  # avoid trying to recode other files in that directory
-  toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
-  
-  imps = lapply( toRecode,
-                 function(x) suppressMessages(read_csv(x)) )
-}
-
+# # redo imps here
+# setwd(prepped.data.dir.private)
+# setwd(study.string)
+# d = read_interm("d_intermediate_1.csv")
+# 
+# # look at missingness patterns
+# Pmiss = apply( d, 2, function(x) mean( is.na(x) ) )
+# sort(Pmiss)
+# # makes sense; for Study 1:
+# #  - all baseline variables have 0 missingness
+# #  - F/U variables usually have exactly 11.6% missingness because that's the attrition rate
+# #  - except for the "ounces" variables, which are additionally missing for subjects who said they 
+# #      never ate that particular food
+# 
+# ##### Make Imputations #####
+# 
+# # variables to be imputed: those measured at follow-up
+# # these are the only vars that can have missing data
+# w2Vars = c(foodVars,
+#            names(w2)[ grepl(pattern = "spec", x = names(w2) ) ],
+#            names(w2)[ grepl(pattern = "dom", x = names(w2) ) ],
+#            names(w2)[ grepl(pattern = "activ", x = names(w2) ) ],
+#            names(w2)[ grepl(pattern = "guessPurpose", x = names(w2) ) ],
+#            names(w2)[ grepl(pattern = "import", x = names(w2) ) ],
+#            "covid" )
+# 
+# # variables to be used in imputation model:
+# # "real" variables measured at baseline and the F/U variables
+# w1Vars = c( "treat",
+#             demoVars )
+# # state has too many categories to work well as predictor
+# impModelVars = w1Vars[ !w1Vars == "state" ]
+# 
+# 
+# #bm: NOW BREAKS FOR STUDY 1 NOW THAT WE'RE NOT SUBSETTING ON HAVING FINISHED W2
+# # we are NOT imputing here for Study 3; that one needs to be handled AFTER making derived vars
+# if ( impute.from.scratch == TRUE & study != 3 ) {
+#   
+#   ##### Generate Imputations #####
+#   library(mice)
+#   
+#   # just to get the predictor matrix and method template
+#   ini = mice(d, m=1, maxit = 0 )
+#   
+#   # check default methods
+#   # all PMM, as desired
+#   ini$method
+#   
+#   # make own predictor matrix by modifying mice's own predictor matrix to keep structure the same
+#   #  from mice docs: "Each row corresponds to a variable block, i.e., a set of variables to be imputed. A value of 1 means that the column variable is used as a predictor for the target block (in the rows)"
+#   myPred = ini$pred
+#   myPred[myPred == 1] = 0
+#   # impute all F/U variables using the sensible ones from baseline as well as all the other F/U vars
+#   myPred[ names(d) %in% w2Vars, # vars to be imputed
+#           names(d) %in% c(impModelVars, w2Vars) ] = 1  # ...and vars in the imputation model
+#   # set diagonals to 0 because a variable can't be used to impute itself
+#   diag(myPred) = 0
+#   
+#   # in order to NOT impute certain vars, also need to set method to ""
+#   # o.w. you get cryptic errors about collinearity
+#   myMethod = ini$method
+#   myMethod[ !names(myMethod) %in% w2Vars ] = ""
+#   
+#   imps = mice( d,
+#                m=M,  
+#                predictorMatrix = myPred,
+#                method = myMethod,
+#                seed = 451)
+#   
+#   imps$loggedEvents$dep
+#   
+#   # # useful if you want to jump back to this point by 
+#   # #  reading in existing imputations as mids objects
+#   # setwd(imputed.data.dir)
+#   # load("imputed_datasets.RData")  # load "imps", the mids object
+#   
+#   # this is prone to crashing R:
+#   # plot comparing density of imputed data to observed datas 
+#   # https://stefvanbuuren.name/fimd/sec-diagnostics.html
+#   # red: imputations, blue: observed
+#   # setwd(results.dir)
+#   # pdf(file = "imputation_density_plot.pdf",
+#   #     width = 15,
+#   #     height = 10)
+#   # densityplot(imps)
+#   # dev.off()
+#   
+#   # any complaints?
+#   unique(imps$loggedEvents)
+#   if ( !is.null(imps$loggedEvents) ) warning("Imputation trouble: Imputations have logged events!")
+#   # all are about using ridge penalty for collinearity
+#   # not too worrisome
+#   
+#   # make sure there is no missing data in the imputations
+#   any.missing = apply( complete(imps,1), 2, function(x) any(is.na(x)) ) # should be FALSE
+#   if ( any(any.missing) == TRUE ) warning("Imputed datasets have missing data! Look at logged events.")
+#   
+#   ##### Save Imputations for Reproducibility #####
+#   if ( overwrite.res == TRUE ) {
+#     
+#     # save imputations for reproducibility
+#     # these raw imputed datasets still have county variable, so are kept in private dir
+#     setwd(imputed.dir.private)
+#     save( imps, file = "imputed_datasets.RData" )
+#     
+#     for (i in 1:M) {
+#       write.csv( complete(imps,i),
+#                  paste("imputed_dataset_", i, ".csv", sep="") )
+#     }
+#   }
+#   
+# } # end impute.from.scratch == TRUE
+# 
+# 
+# ##### Read in Saved Imputations #####
+# 
+# if ( study == 1 ) {
+#   # we're doing this even if impute.from.scratch=TRUE to have same data format
+#   # i.e., a list of imputed datasets instead of a mids object
+#   setwd(imputed.dir.private)
+#   
+#   # avoid trying to recode other files in that directory
+#   toRecode = paste("imputed_dataset_", 1:M, ".csv", sep="")
+#   
+#   imps = lapply( toRecode,
+#                  function(x) suppressMessages(read_csv(x)) )
+# }
+# 
 
 
 
@@ -867,7 +867,8 @@ if ( run.sanity == TRUE ) {
 # making derived variables
 # so instead do it after
 #**this still creates logged events: note this in manuscript
-if ( impute.from.scratch == TRUE & study == 3 ) {
+#if ( impute.from.scratch == TRUE & study == 3 ) {
+if ( impute.from.scratch == TRUE & study %in% c(1,3) ) {
   ini = mice(d2, m=1, maxit = 0 )
   
   
@@ -965,26 +966,27 @@ if ( impute.from.scratch == TRUE & study == 3 ) {
 
 ##### Recode the Imputations - Either Study #####
 
-# Study 1: Need to make derived vars
-if ( study == 1 ) {
-  # saves a new version of the imputation dataset (does not overwrite the old one)
-  setwd(imputed.dir.private)
-  for ( i in 1:M ) {
-    imp = as.data.frame( imps[[i]] )
-    
-    imp = make_derived_vars(imp, printCorMat = FALSE)
-    
-    # save into the public directory now that the datasets are de-ID'ed
-    setwd(imputed.data.dir)
-    write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
-  }
-}
+# # Study 1: Need to make derived vars
+# if ( study == 1 ) {
+#   # saves a new version of the imputation dataset (does not overwrite the old one)
+#   setwd(imputed.dir.private)
+#   for ( i in 1:M ) {
+#     imp = as.data.frame( imps[[i]] )
+#     
+#     imp = make_derived_vars(imp, printCorMat = FALSE)
+#     
+#     # save into the public directory now that the datasets are de-ID'ed
+#     setwd(imputed.data.dir)
+#     write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
+#   }
+# }
 
 
 # Study 3: Only need to check that there are no ID'able variables and save to the public repo
 
 
-if ( study == 3 ) {
+#if ( study == 3 ) {
+if ( study %in% c(1,3) ) {
   
   # first read imps back in
   # we're doing this even if impute.from.scratch=TRUE to have same data format

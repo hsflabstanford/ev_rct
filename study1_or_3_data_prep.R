@@ -17,8 +17,8 @@ overwrite.res = TRUE
 run.sanity = TRUE
 
 # should we impute from scratch or read in saved datasets?
-# from scratch takes about an hour
-impute.from.scratch = TRUE
+# from scratch takes about 5 min
+impute.from.scratch = FALSE
 # number of imputations
 M = 10 
 

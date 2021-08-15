@@ -1123,7 +1123,6 @@ if ( study == 1 ) {
   
   my_ivreg(dat = dcc)
   
-  
   # ~~ IV for MI Datasets ------------------------------------------------
   mi.res = lapply( imps, function(.d) my_ivreg(dat = .d) )
   mi.res = do.call(what = rbind, mi.res)

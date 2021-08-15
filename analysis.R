@@ -551,16 +551,13 @@ if ( study == 2 ) {
                      value = round( res.raw$mn0[ res.raw$analysis == "intentionCont CC" ], 2 ) )
   
   update_result_csv( name = "Preduce cntrl",
-                     value = round( 100 * mean( d$intentionReduce[d$treat ==0] ), 0 ) )
+                     value = round( 100 * mean( d$intentionReduce[d$treat == 0] ), 0 ) )
   
   update_result_csv( name = "intentionCont mean treat",
                      value = round( res.raw$mn1[ res.raw$analysis == "intentionCont CC" ], 2 ) )
   
-  # sanity check
-  mean( d$intentionCont[ d$treat == 0 ] )
-  
   update_result_csv( name = "Preduce treat",
-                     value = round( 100 * mean( d$intentionReduce[d$treat ==1] ), 0 ) )
+                     value = round( 100 * mean( d$intentionReduce[d$treat == 1] ), 0 ) )
   
   
   # continuous outcomes
@@ -1086,7 +1083,6 @@ if ( study == 1 ) {
   
   update_result_csv( name = "mainY IV g hi",
                      value = round( SMD$hi, 2 ) )
-  
   
 }
 

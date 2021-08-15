@@ -1,22 +1,10 @@
 
+# META-NOTES ------------------------------------------------
 
-# BM: Running code for each study to make sure it runs without errors and updating Overleaf,
-#  but NOT yet writing new sanity checks. 
-# Tables in main text will be submitted as Excel files.
-
-# FOR CC SANITY CHECKS, COULD USE THE SCRIPT I DELETED ("**" COMMIT ON GIT)
 
 # This script writes results locally and to Overleaf
 
 # Tables are numbered based on the section number of `analysis.R` that produces them, not the table numbers in the manuscript
-
-# To do:
-#  - When writing tables, keep table nums in file names consistent with paper
-
-
-
-
-# 0. PRELIMINARIES ------------------------------------------------
 
 # Analyzes Study 1, 2, or 3 depending on the argument to prelims()
 #  specified below. 
@@ -24,18 +12,18 @@
 # Meta-notes about this script:
 #  - Each section is self-contained. You can start from anywhere by first running prelims() and then 
 #   running just that section.
+#  - You can use vr() to quickly see the stats_for_paper.csv file.
 
-#@IMPORTANT: This code still needs more sanity checks, especially analyze_all_outcomes!
-# Data prep already has its own sanity checks in a separate file. 
 
+# PRELIMINARIES ------------------------------------------------
 
 rm( list = ls() )
 
 # set your parameters here
-study = 3
+study = 2
 
 # should we delete existing stats_for_paper.csv and start over?
-# note: since studies all write to same results file,
+# **NOTE: since studies all write to same results file,
 #  setting to TRUE will also wipe other studies' results
 overwrite.res = FALSE
 
@@ -65,18 +53,17 @@ if ( overwrite.res == TRUE ) wr()
 
 # 1. SANITY CHECKS ------------------------------------------------
 
-# Table 1 (Wave 1)
+# baseline demographics
 CreateTableOne( vars = c(demo.raw), strata = "treat", data = dcc )
-
-
-# # dropout 
-# # completers
-# CreateTableOne( vars = c(demo.raw, "passCheck", "aware"), strata = "treat", data = d %>% filter( !is.na(mainY)))
 
 # sanity check: treatment effects
 # main and secondaries t-tests
 # for Study 3, won't agree with CC results table exactly because table conditions on randomization variable
-CreateTableOne( vars = c("mainY", secFoodY, psychY), strata = "treat", data = d )
+
+if ( study %in% c(1, 3) ) CreateTableOne( vars = c("mainY", secFoodY, psychY),
+                                          strata = "treat", data = d )
+if ( study == 2 ) CreateTableOne( vars = c("intentionCont", "intentionReduce", secFoodY, psychY),
+                                  strata = "treat", data = d )
 
 
 # 2. DESCRIPTIVE STATS & DEMOGRAPHICS TABLE ------------------------------------------------
@@ -291,13 +278,8 @@ if ( study == 2 ){
                y = intentionCont ) ) +
     geom_violin(draw_quantiles = c(.25, .5, .75)) + 
     theme_bw()
-  
-  # binary intentions
-  dcc %>% group_by(treat) %>%
-    summarise( mean(intentionReduce) )
-  
   setwd(results.dir)
-  ggsave( "descriptive_violin_intentionReduce.pdf",
+  ggsave( "descriptive_violin_intentionCont.pdf",
           height = 6,
           width = 6 )
 }
@@ -377,6 +359,10 @@ if ( (study %in% c(1,3)) & run.sanity == TRUE ) {
 
 # ~~ Sanity Checks on Main Analyses  ----------------------
 
+#@need to do sanity checks for MI analyses for Study 2
+# might be same as below
+
+
 # Manually reproduce est and SE in res.raw for all outcomes
 
 # reproduce MI results for study 3
@@ -455,8 +441,108 @@ if ( run.sanity == TRUE & study == 3 ) {
 
 
 
-#@sanity checks for MI analyses for other studies?
-# especially intentionReduce in Study 2
+
+
+# reproduce CC results for Study 2
+if ( run.sanity == TRUE & study == 2 ) {
+  
+  
+  # names of outcomes to check, but not the binary one
+  #  that one is handled separately at the end
+  toCheck = unlist( lapply( strsplit( res.CC$res.raw$analysis, " CC" ), function(x) x[[1]] ) )
+  #toCheck = toCheck[ !toCheck == "intentionReduce" ]
+  
+  # check CC results
+  for (yName in toCheck) {
+    dat = dcc
+    
+    ### Check Raw Mean Differences ###
+    
+    m0 = mean( dcc[[yName]][ dcc$treat == 0], na.rm = TRUE )
+    m1 = mean( dcc[[yName]][ dcc$treat == 1], na.rm = TRUE )
+    
+    #bm
+    expect_equal( round( m0, 2 ),
+                  res.CC$res.raw$mn0[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    ### Check OLS Results ###
+    
+    string = paste( yName, " ~ treat", sep = "" )
+    
+    # all outcomes, even the binary one, use OLS for the column "est"
+    ols = lm( eval( parse( text = string ) ), data = dat )
+    est = coef(ols)["treat"]
+    
+    # robust SE
+    se = sqrt( vcovHC( ols, type="HC0")["treat", "treat"] )
+    
+    expect_equal( as.numeric(round( est, 2)),
+                  res.CC$res.raw$est[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    expect_equal( round( se, 2 ),
+                  res.CC$res.raw$se[ res.CC$res.raw$analysis == paste( yName, "CC" ) ] )
+    
+    ### Check Effect Sizes ###      
+    
+    
+    
+    # now intentionReduce needs to be handled differently because it's binary, 
+    #  so "g" is actually a risk ratio
+    if ( yName == "intentionReduce") {
+      
+      mod = glm( eval( parse( text = string ) ),
+                 family = binomial(link = "log"),
+                 data = dat )
+      
+      
+    } else {
+      
+      # Hedges' g
+      # recode to be more intuitive
+      # as.factor in RHS to avoid annoying warnings
+      library(effsize)
+      es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
+    }
+    
+    
+    
+    
+    cat( paste("\nJust checked Study 2, CC, outcome", yName) )
+  }
+  
+  
+  # if ( exists("res.raw") ) rm(res.raw)
+  # for ( i in vars ){
+  #   
+  #   test = t.test( d[[i]] ~ (d$treat == FALSE), na.rm = TRUE  )
+  #   
+  #   m0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE )
+  #   m1 = mean( d[[i]][ d$treat == 1], na.rm = TRUE )
+  #   
+  #   # Hedges' g
+  #   # recode to be more intuitive
+  #   # as.factor in RHS to avoid annoying warnings
+  #   library(effsize)
+  #   es = cohen.d( d[[i]] ~ as.factor(d$treat==0), hedges.correction = TRUE )
+  #   
+  #   new.row = data.frame( outcome = i,
+  #                         mn0 = m0,
+  #                         mn1 = m1,
+  #                         med0 = median( d[[i]][ d$treat == 0], na.rm = TRUE ),
+  #                         med1 = median( d[[i]][ d$treat == 1], na.rm = TRUE ),
+  #                         mn.diff = m1-m0,
+  #                         lo = test$conf.int[1],
+  #                         hi = test$conf.int[2],
+  #                         pval = test$p.value,
+  #                         g = es$estimate,
+  #                         g.lo = es$conf.int[1],
+  #                         g.hi = es$conf.int[2],
+  #                         pval2 = NA, # NA because will be redundant with previous p-value for continuous outcomes
+  #                         note = NA) 
+  #   if ( !exists("res.raw") ) res.raw = new.row else res.raw = rbind(res.raw, new.row)
+  # }
+  
+  
+}
 
 
 # ~~ One-Off Stats for Study 2 ------------------------------------------------
@@ -544,10 +630,10 @@ if ( study == 3 ) {
   # we conservatively count these people as not having made a pledge
   # these people have "" for the pledge
   t = sort( dcc %>%
-            filter(treat == 1) %>%
-            summarise_at( .vars = pledgeVars,
-                          .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
-                                                                        "Yes, I pledge to stop eating this food") ) ) ),
+              filter(treat == 1) %>%
+              summarise_at( .vars = pledgeVars,
+                            .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
+                                                                          "Yes, I pledge to stop eating this food") ) ) ),
             decreasing = TRUE )
   
   # sanity check: confirm that the denominator count for each food-specific pledge matches
@@ -560,7 +646,7 @@ if ( study == 3 ) {
     expect_equal( all.equal( unique( as.numeric(temp) ), sum(dcc$treat == 1) ),
                   TRUE )
   }
-
+  
   # any pledge ("reduce" or "eliminate")
   t = sort(t)
   update_result_csv( name = paste( "Perc any pledge", names(t) ),
@@ -586,7 +672,7 @@ if ( study == 3 ) {
       temp = dcc[ dcc$treat == 1, ]
       denom = nrow(temp)
       num = sum( temp[[.var]] %in% c("Yes, I pledge to eat this food less often",
-                                "Yes, I pledge to stop eating this food") )
+                                     "Yes, I pledge to stop eating this food") )
       
       
       # check percentage making any pledge for this food
@@ -596,7 +682,7 @@ if ( study == 3 ) {
     }
     cat("\nDone checking all food-specific pledge percentages; yay")
   }
-
+  
 }  # end "if (study == 3)"
 
 
@@ -780,7 +866,7 @@ if ( study %in% c(1,3) ) {
   
   # interaction of treat:targetDemoSimple
   if ( study == 3 ) {
- 
+    
     missMethod = "MI"
     update_result_csv( name = paste( "treat:targetDemoSimpleTRUE est", missMethod ),
                        value = round( res.raw[ "treat:targetDemoSimpleTRUE", "est" ], 2 ) )

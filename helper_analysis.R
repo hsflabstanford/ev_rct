@@ -44,7 +44,7 @@ prelims = function(study, overwrite.res) {
   overleaf.dir <<- "~/Dropbox/Apps/Overleaf/EatingVeg manuscript/R_objects"
   # results dir not specific to this study (for saving results csv)
   general.results.dir <<- here("Results from R")
- 
+  
   prepped.data.dir <<- here( paste( "Data/Prepped/", study.string, sep = "" ) )
   results.dir <<- here( paste( "Results from R/", study.string, sep = "" ) )
   
@@ -53,7 +53,7 @@ prelims = function(study, overwrite.res) {
     imputed.data.dir <<- here( paste( "Data/Prepped/", study.string, "/Saved imputations", sep = "" ) )
   }
   
-
+  
   # res.raw will be a table of estimates for main outcome, secondaries, effect modifiers
   # res.overleaf will be individual stats formatted for piping into Overleaf
   if ( overwrite.res == TRUE & exists("res.raw") ) rm(res.raw)
@@ -64,7 +64,7 @@ prelims = function(study, overwrite.res) {
   setwd(prepped.data.dir)
   if (study %in% c(1,3)){
     d <<- read.csv("prepped_merged_data.csv")
-
+    
     # complete cases wrt mainY
     # might still have sporadic missing data elsewhere
     dcc <<- d %>% filter( !is.na(mainY) )
@@ -85,7 +85,7 @@ prelims = function(study, overwrite.res) {
     setwd(imputed.data.dir)
     to.read = list.files()[ grepl( pattern = "prepped", x = list.files() ) ]
     imps <<- lapply( to.read,
-                   function(x) suppressMessages(read_csv(x)) )
+                     function(x) suppressMessages(read_csv(x)) )
   }
   
   ##### Lists of Variables #####
@@ -96,38 +96,38 @@ prelims = function(study, overwrite.res) {
   allFoods <<- c(meats, animProds, decoy, goodPlant)
   
   foodVars <<- c( names(d)[ grepl(pattern = "Freq", names(d) ) ],
-                names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
+                  names(d)[ grepl(pattern = "Ounces", names(d) ) ] )
   
   # exploratory psych variables
   psychY <<- c("importHealth",
-             "importEnviro",
-             "importAnimals",
-             "activ",
-             "spec",
-             "dom")
+               "importEnviro",
+               "importAnimals",
+               "activ",
+               "spec",
+               "dom")
   
   # secondary food outcomes
   secFoodY <<- c("totalMeat",
-               "totalAnimProd",
-               meats,
-               animProds,
-               "totalGood")
+                 "totalAnimProd",
+                 meats,
+                 animProds,
+                 "totalGood")
   
   # raw demographics, prior to collapsing categories for effect modification analyses
   demo.raw <<- c("sex",
-               "age",
-               "educ",
-               "cauc",
-               "hisp",
-               "black",
-               "midEast",
-               "pacIsl",
-               "natAm",
-               "SAsian",
-               "EAsian",
-               "SEAsian",
-               "party",
-               "pDem")
+                 "age",
+                 "educ",
+                 "cauc",
+                 "hisp",
+                 "black",
+                 "midEast",
+                 "pacIsl",
+                 "natAm",
+                 "SAsian",
+                 "EAsian",
+                 "SEAsian",
+                 "party",
+                 "pDem")
   
   if (study %in% c(1,2)) {
     effect.mods <<- c("female",
@@ -139,7 +139,7 @@ prelims = function(study, overwrite.res) {
   } else if (study == 3) {
     effect.mods <<- "targetDemoSimple"
   }
-
+  
   
 }
 
@@ -173,7 +173,7 @@ analyze_all_outcomes = function(missMethod) {
     if ( exists("res.raw") ) rm(res.raw)
     
     for ( i in toAnalyze ) {
-
+      
       # Studies 1 and 2: don't control for any covariates
       if ( study %in% c(1,2) ){
         
@@ -184,7 +184,7 @@ analyze_all_outcomes = function(missMethod) {
         
         if ( missMethod == "CC" ) {
           mi.res = my_ttest(yName = i,
-                             dat = d)
+                            dat = d)
         }
         
         
@@ -291,7 +291,7 @@ analyze_all_outcomes = function(missMethod) {
         
       }  # end study == 3 & i == "mainY"
       
- 
+      
       # Study 2 only: also do analysis for the binary variable, intentionReduce
       #  This analysis actually happens during the iterate for the variable intentionCont.
       #  This is a hacky way to have this special analysis performed only once, not for every outcome in 
@@ -310,20 +310,21 @@ analyze_all_outcomes = function(missMethod) {
                     family = binomial(link="log") )
         mod2Inf = confint(mod2)
         
+        browser()
         mn0 = mean( d$intentionReduce[d$treat == 0] )
         mn1 = mean( d$intentionReduce[d$treat == 1] )
         
         new.row2 = data.frame( 
-                              est = mn1-mn0,
-                              se = mod1Inf["Std. Error"],
-                              lo = mod1Inf["Estimate"] - mod1Inf["Std. Error"] * tcrit,
-                              hi = mod1Inf["Estimate"] + mod1Inf["Std. Error"] * tcrit,
-                              pval = mod1Inf["Pr(>|t|)"],
-                              g = exp( mod2$coef["treat"] ),
-                              g.lo = exp( mod2Inf["treat", "2.5 %"] ),
-                              g.hi = exp( mod2Inf["treat", "97.5 %"] ),
-                             pval2 = summary(mod2)$coefficients["treat","Pr(>|z|)"],
-                             note = "Binary outcome, so pval is from robust SEs and g's are actually risk ratios" )
+          est = mn1-mn0,
+          se = mod1Inf["Std. Error"],
+          lo = mod1Inf["Estimate"] - mod1Inf["Std. Error"] * tcrit,
+          hi = mod1Inf["Estimate"] + mod1Inf["Std. Error"] * tcrit,
+          pval = mod1Inf["Pr(>|t|)"],
+          g = exp( mod2$coef["treat"] ),
+          g.lo = exp( mod2Inf["treat", "2.5 %"] ),
+          g.hi = exp( mod2Inf["treat", "97.5 %"] ),
+          pval2 = summary(mod2)$coefficients["treat","Pr(>|z|)"],
+          note = "Binary outcome, so pval is from robust SEs and g's are actually risk ratios" )
         
         # overwrite new.row to actually contain both rows
         # first row is all subjects
@@ -355,6 +356,9 @@ analyze_all_outcomes = function(missMethod) {
       # for CC analyses only, add raw means and medians
       # NOTE: FOR STUDY 3, DIFF IN MEANS WON'T EXACTLY MATCH EST BECAUSE EST CONTROLS
       #  FOR STRATIFICATION VARS
+      # For Study 2, yName = "intentionCont", we have a row for intentionCont AND a row for intentionReduce,
+      #   so this step will insert the same means and medians for both rows. This is overwritten in the ad hoc
+      #   adjustments below. 
       if ( missMethod == "CC" ) {
         new.row = new.row %>% add_column( .before = 1,
                                           mn0 = mean( d[[i]][ d$treat == 0], na.rm = TRUE ),
@@ -371,13 +375,21 @@ analyze_all_outcomes = function(missMethod) {
                                                                   missMethod,
                                                                   sep = "") )
       
-      if ( study == 2 & i == "intentionCont" ) string = c( string, paste( "intentionReduce ",
-                                                                  missMethod,
-                                                                  sep = "") )
+      if ( study == 2 & i == "intentionCont" ) {
+        string = c( string, paste( "intentionReduce ",
+                                   missMethod,
+                                   sep = "") )
+        
+        # also, for this outcome, need to overwrite the means and medians for the second row
+        new.row$mn0[2] = mean( d[["intentionReduce"]][ d$treat == 0], na.rm = TRUE )
+        new.row$mn1[2] = mean( d[["intentionReduce"]][ d$treat == 1], na.rm = TRUE )
+        new.row$med0[2] = median( d[["intentionReduce"]][ d$treat == 0], na.rm = TRUE )
+        new.row$med1[2] = median( d[["intentionReduce"]][ d$treat == 1], na.rm = TRUE )
+ 
+      }
       
       new.row = add_column(new.row, analysis = string, .before = 1)
       
-      #browser()
       if ( !exists("res.raw") ) res.raw = new.row else res.raw = bind_rows(res.raw, new.row)
     }  # end loop over all outcomes to be analyzed
     
@@ -391,7 +403,7 @@ analyze_all_outcomes = function(missMethod) {
     if ( missMethod == "MI") write.csv(res.raw, "4_trt_effect_all_outcomes_mi.csv")
     if ( missMethod == "CC") write.csv(res.raw, "4_trt_effect_all_outcomes_cc.csv")
     
-  
+    
     # cleaned-up version
     # round it
     #browser()
@@ -404,7 +416,7 @@ analyze_all_outcomes = function(missMethod) {
                              pval = res.raw$pval,
                              pvalBonf = res.raw$pvalBonf )
     }
-
+    
     if ( missMethod == "CC") {
       res.nice = data.frame( analysis = res.raw$analysis,
                              mn0 = res.raw$mn0,
@@ -435,7 +447,7 @@ analyze_all_outcomes = function(missMethod) {
     update_result_csv( name = paste( "mainY diff hi", missMethod ),
                        value = round( res.raw$hi[ res.raw$analysis == analysis.string], 2 ) )
     
- 
+    
     update_result_csv( name = paste( "mainY diff pval", missMethod ),
                        value = format_pval( res.raw$pval[ res.raw$analysis == analysis.string], 2 ) )
     
@@ -451,30 +463,30 @@ analyze_all_outcomes = function(missMethod) {
     ##### One-Off Stats for Study 3 Only: Main Estimate Among Target Demographic #####
     
     if ( study == 3 ) {
-    analysis.string2 = paste( "mainY targetDemoSimple-subset", missMethod, sep = " ")
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff", missMethod ),
-                       value = round( res.raw$est[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff lo", missMethod ),
-                       value = round( res.raw$lo[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff hi", missMethod ),
-                       value = round( res.raw$hi[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff pval", missMethod ),
-                       value = format_pval( res.raw$pval[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g", missMethod ),
-                       value = round( res.raw$g[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g lo", missMethod ),
-                       value = round( res.raw$g.lo[ res.raw$analysis == analysis.string2], 2 ) )
-    
-    update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g hi", missMethod ),
-                       value = round( res.raw$g.hi[ res.raw$analysis == analysis.string2], 2 ) )
-    
+      analysis.string2 = paste( "mainY targetDemoSimple-subset", missMethod, sep = " ")
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff", missMethod ),
+                         value = round( res.raw$est[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff lo", missMethod ),
+                         value = round( res.raw$lo[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff hi", missMethod ),
+                         value = round( res.raw$hi[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff pval", missMethod ),
+                         value = format_pval( res.raw$pval[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g", missMethod ),
+                         value = round( res.raw$g[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g lo", missMethod ),
+                         value = round( res.raw$g.lo[ res.raw$analysis == analysis.string2], 2 ) )
+      
+      update_result_csv( name = paste( "mainY targetDemoSimple-subset diff g hi", missMethod ),
+                         value = round( res.raw$g.hi[ res.raw$analysis == analysis.string2], 2 ) )
+      
     }
     
     ##### One-Off Stats for Paper: Various Multiple-Testing Metrics for Secondary Outcomes #####
@@ -692,12 +704,12 @@ my_ols_hc0 = function( coefName, dat, ols, yName ){
 # returns on log-RR scale
 my_log_RR = function( dat ){
   
-
+  
   es = escalc( measure = "RR",
-          ai = sum( dat$treat == 1 & dat$mainYLow == 1 ), # Tx with low consumption
-          bi = sum( dat$treat == 1 & dat$mainYLow == 0 ),  # Tx with high consumption
-          ci = sum( dat$treat == 0 & dat$mainYLow == 1 ),  # control with low consumption
-          di = sum( dat$treat == 0 & dat$mainYLow == 0 ) )  # control with high consumption
+               ai = sum( dat$treat == 1 & dat$mainYLow == 1 ), # Tx with low consumption
+               bi = sum( dat$treat == 1 & dat$mainYLow == 0 ),  # Tx with high consumption
+               ci = sum( dat$treat == 0 & dat$mainYLow == 1 ),  # control with low consumption
+               di = sum( dat$treat == 0 & dat$mainYLow == 0 ) )  # control with high consumption
   
   
   zcrit = qnorm(.975)
@@ -719,7 +731,7 @@ my_log_RR = function( dat ){
 # for all coefficients in model
 # mi.res: the list with length M
 mi_pool_all = function(.mi.res){
-
+  
   coefNames = as.list( names( .mi.res$coefficients) )
   # get number of coefs from first imputation
   nCoefs = nrow(.mi.res[[1]] )
@@ -727,15 +739,15 @@ mi_pool_all = function(.mi.res){
   # list with one element per coefficient
   # first for the coeffs on the raw scale
   temp = lapply( 1:nCoefs, function(i) {
-      # to mi_pool, pass ests and SEs extracted from each imputation in the list
-      raw = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$est[i] ) ),
-               ses = unlist( lapply( .mi.res, function(j) j$se[i] ) ) )
-      
-      SMD = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$g[i] ) ),
-                     ses = unlist( lapply( .mi.res, function(j) j$g.se[i] ) ) )
-      names(SMD) = paste( "g.", names(SMD), sep = "" )
-      
-      cbind(raw, SMD)
+    # to mi_pool, pass ests and SEs extracted from each imputation in the list
+    raw = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$est[i] ) ),
+                   ses = unlist( lapply( .mi.res, function(j) j$se[i] ) ) )
+    
+    SMD = mi_pool( ests = unlist( lapply( .mi.res, function(j) j$g[i] ) ),
+                   ses = unlist( lapply( .mi.res, function(j) j$g.se[i] ) ) )
+    names(SMD) = paste( "g.", names(SMD), sep = "" )
+    
+    cbind(raw, SMD)
   } )
   
   # yields dataset
@@ -798,7 +810,7 @@ mi_pool = function( ests, ses ){
 ##### IV Regression #####
 
 my_ivreg = function(dat){
-
+  
   iv = ivreg(mainY ~ treat | passCheck, data = dat)
   
   est = coef(iv)["treat"]
@@ -824,7 +836,7 @@ my_ivreg = function(dat){
   
   g = est * term
   
-
+  
   return( data.frame( 
     est = est,
     se = se,
@@ -910,8 +922,8 @@ update_result_csv = function( name,
   
   if ( "stats_for_paper.csv" %in% list.files() ) {
     res.overleaf <<- read.csv( "stats_for_paper.csv",
-                    stringsAsFactors = FALSE,
-                    colClasses = rep("character", 3 ) )
+                               stringsAsFactors = FALSE,
+                               colClasses = rep("character", 3 ) )
     
     # if this entry is already in the results file, overwrite the
     #  old one

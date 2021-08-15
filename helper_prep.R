@@ -73,7 +73,9 @@ recode_checkboxes = function( .d,
   
   return(.d)
 }
-
+# sanity check:
+# dat = data.frame( race = c("", "midEast", "natAm,SAsian,EAsian,SEAsian" ) )
+# recode_checkboxes( .d = dat, var = "race" )
 
 
 # also removes the stateCounty variable for deidentification

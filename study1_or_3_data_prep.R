@@ -11,7 +11,7 @@ rm(list=ls())
 
 ##### Set Parameters Here #####
 # overwrite old results?
-overwrite.res = TRUE
+overwrite.res = FALSE
 
 # should sanity checks be run?
 run.sanity = TRUE
@@ -346,6 +346,10 @@ table( t$`n()` )  # responses per pID
 # this is the only exclusion for W1
 # Study 2: same; one person did it twice
 dupID = w1$w1.ID[ duplicated(w1$w1.ID) ]
+
+# look at the duplicated one
+w1 %>% filter(w1.ID == dupID)
+# this person somehow did the questionnaire twice within a span of 30 minutes
 
 # keep only this person's first submission
 w1 = w1 %>% filter( !duplicated(w1.ID) )

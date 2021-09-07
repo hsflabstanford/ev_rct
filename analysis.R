@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 3
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -690,8 +690,10 @@ if ( study == 2 ) {
 }
 
 
-# ~~ One-Off Stats for Study 3 ------------------------------------------------
+# ~~ One-Off Pledge Stats for Study 3 ------------------------------------------------
 
+
+### Numeric Stats For Paper ###
 if ( study == 3 ) {
   
   # proportion of subjects making pledges 
@@ -756,7 +758,41 @@ if ( study == 3 ) {
     cat("\nDone checking all food-specific pledge percentages; yay")
   }
   
+ 
+  
+  ### Pledge Types Table ### 
+  
+  # more detailed breakdown
+  # see note above about how we count droppers-out
+  tEither = dcc %>% filter(treat == 1) %>%
+              summarise_at( .vars = pledgeVars,
+                            .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often",
+                                                                          "Yes, I pledge to stop eating this food") ) ) )
+  
+  tReduce = dcc %>%
+              filter(treat == 1) %>%
+              summarise_at( .vars = pledgeVars,
+                            .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to eat this food less often") ) ) )
+  
+  tElim = dcc %>%
+    filter(treat == 1) %>%
+    summarise_at( .vars = pledgeVars,
+                  .funs = function(x) round( 100*mean( x %in% c("Yes, I pledge to stop eating this food") ) ) )
+  
+  pledgeTable = as.data.frame( t( rbind(tReduce, tElim, t) ) )
+  names(pledgeTable) = c("PercReduce", "PercElim", "PercEither")
+  
+  # reorder rows to match other tables
+  pledgeTable = pledgeTable[ c("pledgeChicken", "pledgeFish", "pledgePork", "pledgeBeef", 
+                 "pledgeOtherMeat", "pledgeDairy", "pledgeEggs"), ]
+  
+  # save table
+  setwd(results.dir)
+  write.csv(pledgeTable, "6_pledges_cc.csv")
+  
+  
 }  # end "if (study == 3)"
+
 
 
 

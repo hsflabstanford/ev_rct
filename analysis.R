@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 2
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -166,11 +166,19 @@ t1 = data.frame( Characteristic = t1.treat$Characteristic,
                  Intervention = t1.treat$Summary,
                  Control = t1.cntrl$Summary )
 
+#bm
+
 
 # save it
 if( overwrite.res == TRUE ){
   setwd(results.dir)
   write.csv(t1, "2_table_demographics.csv")
+  
+  # for Study 2, table is going in the Supplement, so also save xtable version
+  write.table( print( xtable( t1,
+                              include.rownames = FALSE ) ),
+               file = "2_table_demographics_pretty_tex.txt"
+  )
 }
 
 

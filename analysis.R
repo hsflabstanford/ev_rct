@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 3
+study = 1
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -251,6 +251,13 @@ if ( study %in% c(1,3)) {
 }
 
 
+#bm
+# compare health motivations among control participants in Study 1 vs. 3
+if ( study %in% c(1,3) ){
+  
+  update_result_csv( name = "cntrl importHealth",
+                     value = round( mean( d$importHealth[ d$treat == 0 ], na.rm = TRUE ), 2 ) )
+}
 
 # ~ Plot Complete-Case Treatment Group Differences ------------------------------------------------
 

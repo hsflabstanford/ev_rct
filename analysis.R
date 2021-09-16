@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 2
+study = 3
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,

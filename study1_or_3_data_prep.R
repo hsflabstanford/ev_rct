@@ -13,6 +13,9 @@ rm(list=ls())
 # overwrite old results?
 overwrite.res = FALSE
 
+# should we overwrite previous prepped versions of the data?
+overwrite.prepped.data = TRUE
+
 # should sanity checks be run?
 run.sanity = TRUE
 
@@ -24,7 +27,7 @@ M = 10
 
 # which study's data to prep?
 # must be 1 or 3
-study = 1
+study = 3
 # for making strings
 if ( study %in% c(1,3) ) study.string = paste("Study", study, sep = " ") else stop("Invalid study spec.")
 
@@ -77,8 +80,7 @@ code.dir = here("Code (git)")
 setwd(code.dir)
 source("helper_prep.R")
 
-# should we overwrite previous prepped versions of the data?
-overwrite.prepped.data = TRUE
+
 
 ##### Lists of Variables #####
 demoVars = c( "sex",
@@ -865,7 +867,7 @@ if ( run.sanity == TRUE ) {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                               MULTIPLE IMPUTATION FOR STUDY 3 
+#                               MULTIPLE IMPUTATION FOR STUDY 1 OR 3 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 # for Study 3, the MI models weren't converging when we tried to impute BEFORE
 # making derived variables

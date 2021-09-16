@@ -176,6 +176,7 @@ make_derived_vars = function(.d,
   if ( "stateCounty" %in% names(.d) ) .d = .d %>% select(-stateCounty)
   if ( "county" %in% names(.d) ) .d = .d %>% select(-county)
   
+  browser()
   ##### Misc #####
   # these vars only exist for study 1
   if ( "w1.date" %in% names(.d) ) {

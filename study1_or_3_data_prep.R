@@ -828,26 +828,6 @@ if ( impute.from.scratch == TRUE & study %in% c(1,3) ) {
 
 ##### Recode the Imputations - Either Study #####
 
-# # Study 1: Need to make derived vars
-# if ( study == 1 ) {
-#   # saves a new version of the imputation dataset (does not overwrite the old one)
-#   setwd(imputed.dir.private)
-#   for ( i in 1:M ) {
-#     imp = as.data.frame( imps[[i]] )
-#     
-#     imp = make_derived_vars(imp, printCorMat = FALSE)
-#     
-#     # save into the public directory now that the datasets are de-ID'ed
-#     setwd(imputed.data.dir)
-#     write.csv( imp, paste("imputed_dataset_prepped_", i, ".csv", sep="") )
-#   }
-# }
-
-
-# Study 3: Only need to check that there are no ID'able variables and save to the public repo
-
-
-#if ( study == 3 ) {
 if ( study %in% c(1,3) ) {
   
   # first read imps back in

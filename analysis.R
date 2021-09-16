@@ -121,13 +121,13 @@ if ( study %in% c(1,3) ){
 }
 
 
-if ( study == 1 ) {
+if ( study %in% c(1,3) ) {
   # follow-up times
   update_result_csv( name = "Perc fuDays 12 to 14",
                      value = round( mean(d$fuDays <= 12, na.rm = TRUE) * 100, 0) )
   
   update_result_csv( name = "Mean fuDays",
-                     value = mean(d$fuDays, na.rm = TRUE) )
+                     value = round( mean(d$fuDays, na.rm = TRUE) ) )
   
   update_result_csv( name = "Median fuDays",
                      value = median(d$fuDays, na.rm = TRUE) )

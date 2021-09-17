@@ -80,11 +80,17 @@ update_result_csv( name = "N wave 1 treat",
 update_result_csv( name = "N wave 1 cntrl",
                    value = sum(d$treat == 0) )
 
+update_result_csv( name = "N wave 2",
+                   value = nrow(dcc) )
+
+update_result_csv( name = "N wave 2 treat",
+                   value = sum(dcc$treat == 1) )
+
+update_result_csv( name = "N wave 2 cntrl",
+                   value = sum(dcc$treat == 0) )
+
 
 if ( study %in% c(1,3) ){
-  
-  update_result_csv( name = "N wave 2",
-                     value = nrow(dcc) )
   
   # differential attrition by treatment group and demographics
   # logit(P(missingness))

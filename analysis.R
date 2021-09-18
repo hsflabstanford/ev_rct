@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 3
+study = 1
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -127,8 +127,8 @@ if ( study %in% c(1,3) ){
 }
 
 
+# individual follow-up times
 if ( study %in% c(1,3) ) {
-  # follow-up times
   update_result_csv( name = "Perc fuDays 12 to 14",
                      value = round( mean(d$fuDays <= 12, na.rm = TRUE) * 100, 0) )
   
@@ -146,6 +146,21 @@ if ( study %in% c(1,3) ) {
 }
 
 
+# dates that data collection began and ended 
+# for CONSORT checklist
+
+if ( study %in% c(1,3) ){
+  update_result_csv( name = "Earliest W1 date",
+                     value = min(d$w1.date, na.rm = TRUE) )
+  update_result_csv( name = "Latest W2 date",
+                   value = max(d$w2.date, na.rm = TRUE) )
+}
+if ( study == 2 ) {
+  update_result_csv( name = "Earliest W1 date",
+                     value = min(d$d1.date, na.rm = TRUE) )
+  update_result_csv( name = "Latest W1 date",
+                     value = max(d$d1.date, na.rm = TRUE) )
+}
 
 
 # ~ Table 1 (Demographics Among All Wave 1 Subjects) ------------------------------------------------

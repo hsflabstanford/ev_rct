@@ -949,11 +949,14 @@ update_result_csv = function( name,
 }
 
 
-# make my own Table 1
+### Make my own Table 1
 # x: variable to be summarized
+# var.header: pretty variable name to use in table
 # type: "cat", "bin01", "cont"
+# num.digits: rounding
 # countNA: should we count NA as its own category for cat and bin01?
-# tab1: the current table 1 (if NA, starts generating one from scratch)
+# .tab1: the current table 1 (if NA, starts generating one from scratch)
+# print: print the table-in-progress?
 table1_add_row = function( x, # vector
                            var.header,  # variable name to use in table
                            type,

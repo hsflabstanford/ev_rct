@@ -610,9 +610,10 @@ my_ols_hc0_all = function(dat, ols, yName){
   do.call( what = rbind, temp )
 }
 
-
+# coefName: which coefficient to report
+# dat: dataset (needed to calculate Hedges' g)
 # ols: the OLS model with all the effect modifiers
-# needs dataset itself to calculate Hedges' g
+# yName: outcome
 my_ols_hc0 = function( coefName, dat, ols, yName ){
   
   dat$Y = dat[[yName]]

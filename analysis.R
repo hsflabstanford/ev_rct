@@ -19,7 +19,7 @@
 rm( list = ls() )
 
 # set your parameters here
-study = 1
+study = 3
 
 # should we delete existing stats_for_paper.csv and start over?
 # **NOTE: since studies all write to same results file,
@@ -186,8 +186,6 @@ if ( study ==1 ){
 t1 = data.frame( Characteristic = t1.treat$Characteristic,
                  Intervention = t1.treat$Summary,
                  Control = t1.cntrl$Summary )
-
-#bm
 
 
 # save it
